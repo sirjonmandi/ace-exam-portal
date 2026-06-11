@@ -1,8 +1,9 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getStoredUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
-import { subjectBreakdown } from "@/lib/mock-data";
+// import { subjectBreakdown } from "@/lib/mock-data";
 import { Trophy, Clock, Target, XCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/results/$resultId")({
   beforeLoad: () => {
@@ -14,11 +15,51 @@ export const Route = createFileRoute("/results/$resultId")({
 
 function ResultPage() {
   const { resultId } = Route.useParams();
-  const correct = 68;
-  const wrong = 22;
-  const total = correct + wrong;
-  const pct = Math.round((correct / total) * 100);
-  const passed = pct >= 70;
+  const [correct, setCorrect] = useState<Number>(0);
+  const [wrong, setWrong] = useState<Number>(0);
+  const [total, setTotal] = useState<Number>(0);
+  const [pct, setPct] = useState<Number>(0);
+  const [passed, setPassed] = useState<Boolean>(false);
+  const [timeSpend, setTimeSpend] = useState<string>('');
+  const [subjectBreakdown, setSubjectBreakdown] = useState<[any]>([{}]);
+
+  function secondsToHM(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+
+      return hours > 0
+          ? `${hours}h${String(minutes).padStart(2, '0')}m`
+          : `${minutes}m`;
+  }
+
+  useEffect(()=>{
+    getResult()
+  },[]);
+  const getResult = () =>{
+    let result = localStorage.getItem(resultId);
+    console.log('====================================');
+    console.log(JSON.parse(result));
+    console.log('====================================');
+    let fresh = JSON.parse(result);
+    setCorrect(fresh.summary.correctCount)
+    setWrong(fresh.summary.wrongCount)
+    setTotal(fresh.summary.totalQuestions)
+    setPct(Math.round((fresh.summary.correctCount / fresh.summary.totalQuestions) * 100))
+    setPassed(Math.round((fresh.summary.correctCount / fresh.summary.totalQuestions) * 100) >= 70)
+    setTimeSpend(secondsToHM(fresh.summary.totalTimeSpent))
+    setSubjectBreakdown(
+    (fresh.subjectStats || []).map((s: any) => ({
+      subject: s.subject,
+      score: Math.round((s.score / s.total) * 100),
+      total: s.total,
+    }))
+  );
+  }
+  // const correct = 68;
+  // const wrong = 22;
+  // const total = correct + wrong;
+  // const pct = Math.round((correct / total) * 100);
+  // const passed = pct >= 70;
 
   return (
     <AppShell title="Mock Result">
@@ -42,7 +83,7 @@ function ResultPage() {
           { label: "Total Score", value: `${correct}/${total}`, icon: Target },
           { label: "Correct", value: correct, icon: CheckCircle2, color: "text-success" },
           { label: "Incorrect", value: wrong, icon: XCircle, color: "text-destructive" },
-          { label: "Time Spent", value: "1h 58m", icon: Clock },
+          { label: "Time Spent", value: timeSpend, icon: Clock },
         ].map((s) => (
           <div key={s.label} className="card-elevated rounded-2xl p-5">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -81,7 +122,7 @@ function ResultPage() {
           <div className="card-elevated rounded-2xl p-6">
             <h2 className="text-base font-semibold">Weak Topics</h2>
             <ul className="mt-4 space-y-3">
-              {subjectBreakdown.filter((s) => s.score < 70).map((s) => (
+              { subjectBreakdown.length > 0 && subjectBreakdown.filter((s) => s.score < 70).map((s) => (
                 <li key={s.subject} className="flex items-center justify-between rounded-lg bg-surface border border-border px-3 py-2.5">
                   <span className="text-sm">{s.subject}</span>
                   <span className="text-xs text-warning">{s.score}%</span>

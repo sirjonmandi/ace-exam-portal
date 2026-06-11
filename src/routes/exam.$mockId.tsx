@@ -53,6 +53,13 @@ const INSTRUCTIONS = [
 
 type FilterType = "all" | "flagged" | "attempted" | "not-attempted";
 
+type QuestionMetrics = {
+  id: string;
+  viewCount: number;
+  totalTimeSeconds: number;
+  timeAfterAttemptSeconds: number;
+};
+
 function ExamPage() {
   const { user } = useAuth();
   const { mockId } = Route.useParams();
@@ -70,36 +77,71 @@ function ExamPage() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  // --- NEW TRACKING REFS ---
+  const trackingMetricsRef = useRef<Record<string, QuestionMetrics>>({});
+  const currentQIdRef = useRef<string>(questions[0]?.id);
+  const answersRef = useRef(answers);
+
+  // Initialize tracking metrics for all questions when the exam loads
+  useEffect(() => {
+    const initialMetrics: Record<string, QuestionMetrics> = {};
+    questions.forEach((q) => {
+      initialMetrics[q.id] = {
+        id: q.id,
+        viewCount: 0, // 0 initially, updated when viewed
+        totalTimeSeconds: 0,
+        timeAfterAttemptSeconds: 0,
+      };
+    });
+    trackingMetricsRef.current = initialMetrics;
+  }, [questions]);
+
+  // Keep refs synced with React state so our setInterval can read them without restarting
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  useEffect(() => {
+    const activeQ = questions[idx];
+    if (!activeQ) return;
+    
+    currentQIdRef.current = activeQ.id;
+
+    // Only log views if instructions are closed
+    if (!instructionsOpen && trackingMetricsRef.current[activeQ.id]) {
+      trackingMetricsRef.current[activeQ.id].viewCount += 1;
+    }
+  }, [idx, instructionsOpen, questions]);
+
   // Timer only runs after instructions are dismissed
   useEffect(() => {
-    if (instructionsOpen) return;
-    if (seconds <= 0) {
-      navigate({ to: "/results/$resultId", params: { resultId: mockId } });
-      return;
-    }
-    const t = setInterval(() => setSeconds((s) => s - 1), 1000);
-    return () => clearInterval(t);
-  }, [seconds, mockId, navigate, instructionsOpen]);
+      if (instructionsOpen) return;
 
-  // Block navigation away once exam starts
-  useEffect(() => {
-    if (instructionsOpen) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.history.pushState(null, "", window.location.href);
-    const handlePopState = () => {
-      window.history.pushState(null, "", window.location.href);
-      setExitAttempt(true);
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [instructionsOpen]);
+      const t = setInterval(() => {
+        setSeconds((prevSeconds) => {
+          if (prevSeconds <= 1) {
+            clearInterval(t);
+            handleFinalSubmit(); // Trigger final submit if time runs out
+            return 0;
+          }
+          return prevSeconds - 1;
+        });
+
+        // --- TRACKING LOGIC ---
+        const qId = currentQIdRef.current;
+        if (qId && trackingMetricsRef.current[qId]) {
+          // Add 1 second to the total time spent on this specific question
+          trackingMetricsRef.current[qId].totalTimeSeconds += 1;
+          
+          // If this question's ID exists in the answers ref, the user is looking at it AFTER attempting it
+          if (answersRef.current[qId]) {
+            trackingMetricsRef.current[qId].timeAfterAttemptSeconds += 1;
+          }
+        }
+      }, 1000);
+
+      return () => clearInterval(t);
+    }, [instructionsOpen]);
 
   // Close filter dropdown on outside click
   useEffect(() => {
@@ -141,6 +183,98 @@ function ExamPage() {
       return next;
     });
   };
+// Reusable submit function to handle both manual clicks and timer run-outs
+  const handleFinalSubmit = () => {
+    const metricsArray = Object.values(trackingMetricsRef.current);
+    const attemptedCount = Object.keys(answersRef.current).length;
+    const notAttemptedCount = questions.length - attemptedCount;
+
+    const TOTAL_EXAM_SECONDS = 135 * 60; // 2 hours 15 minutes
+    const overallTimeSpent = TOTAL_EXAM_SECONDS - seconds;
+
+    // Initialize accuracy counters
+    let correctCount = 0;
+    let wrongCount = 0;
+
+    const subjectMap:any = {};
+
+    // Process each question to determine correctness
+    const finalQuestionMetrics = metricsArray.map((m) => {
+      const question = questions.find((q) => q.id === m.id);
+      const correctAnswer = question?.answer;
+      const givenAnswer = answersRef.current[m.id] || null;
+      let isCorrect = false;
+
+      if (givenAnswer) {
+        if (givenAnswer === correctAnswer) {
+          isCorrect = true;
+          correctCount += 1;
+        } else {
+          wrongCount += 1;
+        }
+      }
+
+      // Build subject stats
+      const subject = question?.topic || "Unknown";
+
+      if (!subjectMap[subject]) {
+        subjectMap[subject] = {
+          subject,
+          score: 0,
+          total: 0,
+        };
+      }
+
+      subjectMap[subject].total += 1;
+
+      if (isCorrect) {
+        subjectMap[subject].score += 1;
+      }
+
+      return {
+        questionId: m.id,
+        topic: question?.topic,
+        totalTimeSpent: m.totalTimeSeconds,
+        timeSpentAfterAttempt: m.timeAfterAttemptSeconds,
+        timesViewed: m.viewCount,
+        isReopened: m.viewCount > 1,
+        isAttempted: !!givenAnswer,
+        givenAnswer: givenAnswer,
+        correctAnswer: correctAnswer, 
+        isCorrect: isCorrect,
+      };
+    });
+
+    const subjectStats = Object.values(subjectMap);
+    // Prepare the final analytics payload
+    const trackingReport = {
+      examId: mockId,
+      userId: user?.id,
+      summary: {
+        totalQuestions: questions.length,
+        attempted: attemptedCount,
+        notAttempted: notAttemptedCount,
+        correctCount: correctCount,
+        wrongCount: wrongCount,
+        overallTimeLeft: seconds,
+        totalTimeSpent: overallTimeSpent,
+      },
+      subjectStats,
+      questionMetrics: finalQuestionMetrics,
+    };
+
+    // TODO: Dispatch 'trackingReport' to your backend API here
+    console.log("Final Analytics Payload:", trackingReport);
+    localStorage.removeItem(mockId);
+    localStorage.setItem(mockId,JSON.stringify(trackingReport));
+    navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+  };
+
+  //handle submit 
+  const handleSubmit = () =>{
+    handleFinalSubmit();
+    // navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+  }
 
   const q = questions[idx];
   const hh = Math.floor(seconds / 3600).toString().padStart(2, "0");
@@ -343,7 +477,7 @@ function ExamPage() {
             <div className="flex gap-3 px-4 sm:px-6 pt-3 pb-4 sm:pb-5 border-t border-primary/20 shrink-0">
               <Link
                 to="/dashboard"
-                className="flex-1 text-center text-sm py-2.5 rounded-lg bg-background border border-primary/20 transition-colors text-forground"
+                className="flex-1 text-center text-sm py-2.5 rounded-lg bg-background border border-primary/20 transition-colors text-forground hover:bg-primary/20"
               >
                 Go back
               </Link>
@@ -644,19 +778,19 @@ function ExamPage() {
       {/* ── Exit-attempt warning ── */}
       {exitAttempt && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+          <div className="bg-background rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="h-11 w-11 rounded-full bg-red-100 text-red-600 grid place-items-center">
               <Lock className="h-5 w-5" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-900">Exam in progress</h3>
+            <h3 className="mt-4 text-lg font-semibold">Exam in progress</h3>
             <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
               You cannot leave this exam without submitting. Complete your exam and click{" "}
-              <strong className="text-gray-900">Finish Test</strong> to exit.
+              <strong className="">Finish Test</strong> to exit.
             </p>
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setExitAttempt(false)}
-                className="flex-1 text-sm py-2.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700"
+                className="flex-1 text-sm py-2.5 rounded-lg bg-background border border-primary/20 hover:bg-primary/20 transition-colors"
               >
                 Continue exam
               </button>
@@ -675,11 +809,11 @@ function ExamPage() {
       {/* ── Submit confirm dialog ── */}
       {confirm && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+          <div className="bg-background rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 grid place-items-center">
               <AlertTriangle className="h-5 w-5" />
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-gray-900">Submit your exam?</h3>
+            <h3 className="mt-4 text-lg font-semibold">Submit your exam?</h3>
             <p className="text-sm text-gray-500 mt-1">
               You answered {Object.keys(answers).length} of {questions.length} questions.
               You can't return to this session after submitting.
@@ -687,18 +821,17 @@ function ExamPage() {
             <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 onClick={() => setConfirm(false)}
-                className="text-sm px-4 py-2 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700"
+                className="text-sm px-4 py-2 rounded-lg bg-background border border-primary/20 hover:bg-primary/20 hover:cursor-pointer "
               >
                 Keep going
               </button>
-              <Link
-                to="/results/$resultId"
-                params={{ resultId: mockId }}
-                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg text-white font-medium"
+              <button
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg text-white font-medium hover:cursor-pointer"
                 style={{ background: "#4caf50" }}
+                onClick={handleSubmit}
               >
                 <CheckCircle2 className="h-4 w-4" /> Submit now
-              </Link>
+              </button>
             </div>
           </div>
         </div>
