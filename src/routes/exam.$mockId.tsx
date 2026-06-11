@@ -1,0 +1,705 @@
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { getStoredUser } from "@/lib/auth";
+import { sessionQuestions, m1AmQuestions } from "@/lib/mock-data";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Flag, ChevronLeft, ChevronRight,
+  AlertTriangle, CheckCircle2,
+  BookOpenCheck, ClipboardList, ShieldAlert, ArrowRight,
+  MousePointerClick, ListOrdered, Lock, Clock,
+  Settings, SlidersHorizontal, ChevronDown, ChevronUp, X,
+} from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+export const Route = createFileRoute("/exam/$mockId")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined" && !getStoredUser()) throw redirect({ to: "/login" });
+  },
+  head: () => ({ meta: [{ title: "Exam — Kaplan CFA Mock Portal" }] }),
+  component: ExamPage,
+});
+
+const INSTRUCTIONS = [
+  {
+    icon: Clock,
+    title: "Time limit",
+    body: "You have 2 hours 15 minutes to complete this session. The countdown begins the moment you click Begin Exam.",
+  },
+  {
+    icon: BookOpenCheck,
+    title: "Questions",
+    body: "This session contains 90 questions spanning 10 CFA Level 1 topic areas. Each question has exactly one correct answer.",
+  },
+  {
+    icon: ListOrdered,
+    title: "Navigation",
+    body: "Use the Previous / Next buttons or the Question Palette to move between questions. You can revisit any question before submitting.",
+  },
+  {
+    icon: Flag,
+    title: "Flagging",
+    body: "Flag questions you are unsure about and return to them later. Flagged questions are highlighted in the palette.",
+  },
+  {
+    icon: MousePointerClick,
+    title: "Submitting",
+    body: "Click Finish Test when you are ready. You will be asked to confirm before the session is closed.",
+  },
+  {
+    icon: ShieldAlert,
+    title: "Important",
+    body: "Once submitted, you cannot re-enter this session. Ensure you have answered all intended questions before submitting.",
+  },
+];
+
+type FilterType = "all" | "flagged" | "attempted" | "not-attempted";
+
+function ExamPage() {
+  const { user } = useAuth();
+  const { mockId } = Route.useParams();
+  const navigate = useNavigate();
+  const questions = useMemo(() => sessionQuestions[mockId] ?? m1AmQuestions, [mockId]);
+  const [idx, setIdx] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, "A" | "B" | "C">>({});
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [seconds, setSeconds] = useState(135 * 60);
+  const [confirm, setConfirm] = useState(false);
+  const [exitAttempt, setExitAttempt] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(true);
+  const [filterType, setFilterType] = useState<FilterType>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  // Timer only runs after instructions are dismissed
+  useEffect(() => {
+    if (instructionsOpen) return;
+    if (seconds <= 0) {
+      navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+      return;
+    }
+    const t = setInterval(() => setSeconds((s) => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [seconds, mockId, navigate, instructionsOpen]);
+
+  // Block navigation away once exam starts
+  useEffect(() => {
+    if (instructionsOpen) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = () => {
+      window.history.pushState(null, "", window.location.href);
+      setExitAttempt(true);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [instructionsOpen]);
+
+  // Close filter dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Group questions into sections by topic
+  const sections = useMemo(() => {
+    const topicOrder: string[] = [];
+    const topicMap = new Map<string, number[]>();
+    // console.log('====================================');
+    // console.log(JSON.stringify(questions,null,2));
+    // console.log('====================================');
+    questions.forEach((q, i) => {
+      if (!topicMap.has(q.topic)) {
+        topicMap.set(q.topic, []);
+        topicOrder.push(q.topic);
+      }
+      topicMap.get(q.topic)!.push(i);
+    });
+    return topicOrder.map(topic => ({ topic, indices: topicMap.get(topic)! }));
+  }, [questions]);
+
+  // All sections start expanded
+  const [expandedSections, setExpandedSections] = useState<Set<number>>(
+    () => new Set(Array.from({ length: 50 }, (_, i) => i))
+  );
+
+  const toggleSection = (si: number) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      next.has(si) ? next.delete(si) : next.add(si);
+      return next;
+    });
+  };
+
+  const q = questions[idx];
+  const hh = Math.floor(seconds / 3600).toString().padStart(2, "0");
+  const mm = Math.floor((seconds % 3600) / 60).toString().padStart(2, "0");
+  const ss = (seconds % 60).toString().padStart(2, "0");
+  const lowTime = seconds < 600;
+  const progress = Math.round((Object.keys(answers).length / questions.length) * 100);
+
+  const currentSectionIdx = useMemo(
+    () => sections.findIndex(s => s.indices.includes(idx)),
+    [sections, idx]
+  );
+
+  const toggleFlag = () => {
+    setFlagged(prev => {
+      const next = new Set(prev);
+      next.has(q.id) ? next.delete(q.id) : next.add(q.id);
+      return next;
+    });
+  };
+
+  const passesFilter = (qIdx: number) => {
+    const question = questions[qIdx];
+    if (filterType === "flagged") return flagged.has(question.id);
+    if (filterType === "attempted") return !!answers[question.id];
+    if (filterType === "not-attempted") return !answers[question.id];
+    return true;
+  };
+
+  const filterLabel =
+    filterType === "flagged" ? "Flagged"
+    : filterType === "attempted" ? "Attempted"
+    : filterType === "not-attempted" ? "Not Attempted"
+    : "Filter";
+
+  const noSidebarResults = filterType !== "all" && sections.every(s => s.indices.filter(passesFilter).length === 0);
+
+  const renderPalette = (closeOnSelect: boolean) => (
+    <>
+      {noSidebarResults && (
+        <div className="h-full flex justify-center items-center">
+          <div className="px-4 py-8 text-center items-center text-sm text-gray-400">
+            No questions match this filter
+            <button 
+            className="w-full flex justify-center px-3 py-1.5 rounded text-sm font-medium transition-colors mt-2 border border-red-300 text-red-500 hover:cursor-pointer "
+            onClick={()=>setFilterType('all')}
+            >Clear Filter</button>
+          </div>
+        </div>
+      )}
+      {filterType !== 'all' && !noSidebarResults ? 
+        <div className="flex justify-end mb-2">
+            <button
+            className="flex justify-center px-3 py-1.5 rounded text-sm font-medium border border-red-300 text-red-500 transition-colors mt-2 hover:cursor-pointer "
+            onClick={()=>setFilterType('all')}
+            >Clear Filter</button>
+        </div>
+        : ''}
+      {sections.map((section, si) => {
+        const hasMultiple = section.indices.length > 1;
+        const isExpanded = expandedSections.has(si);
+        const isActiveSection = currentSectionIdx === si;
+        const visibleSubIndices = section.indices.filter(passesFilter);
+        if (filterType !== "all" && visibleSubIndices.length === 0) return null;
+
+        return (
+          <div key={si} className="px-2 mb-1">
+            {/* Section header */}
+            <button
+              onClick={() => {
+                if (hasMultiple) {
+                  toggleSection(si);
+                } else {
+                  setIdx(section.indices[0]);
+                  if (closeOnSelect) setPaletteOpen(false);
+                }
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded text-sm font-semibold text-white transition-opacity"
+              style={{
+                background: "#4caf50",
+                opacity: isActiveSection ? 1 : 0.82,
+              }}
+              onMouseEnter={e => { if (!isActiveSection) (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+              onMouseLeave={e => { if (!isActiveSection) (e.currentTarget as HTMLElement).style.opacity = "0.82"; }}
+            >
+              <span>{si + 1}</span>
+              {hasMultiple && (
+                isExpanded
+                  ? <ChevronUp className="h-3.5 w-3.5" />
+                  : <ChevronDown className="h-3.5 w-3.5" />
+              )}
+            </button>
+
+            {/* Sub-questions */}
+            {hasMultiple && isExpanded && (
+              <div className="mt-1 pl-2 space-y-0.5 grid grid-cols-3 gap-1">
+                {section.indices.map((qi, subI) => {
+                  if (!passesFilter(qi)) return null;
+                  const subQ = questions[qi];
+                  const isActive = qi === idx;
+                  const isAnswered = !!answers[subQ.id];
+                  const isFlagged = flagged.has(subQ.id);
+                  return (
+                    <button
+                      key={qi}
+                      onClick={() => { setIdx(qi); if (closeOnSelect) setPaletteOpen(false); }}
+                      className="w-full flex justify-center px-3 py-1.5 rounded text-sm font-medium transition-colors border border-primary/20 hover:cursor-pointer"
+                      style={
+                        isActive
+                          ? { background: "#4caf50", color: "#ffffff" }
+                          : isFlagged
+                          ? { background: "#b45309", color: "#fffbeb" }
+                          : isAnswered
+                          ? { background: "#4b5563", color: "#f9fafb" }
+                          : {}
+                      }
+                    >
+                      {isFlagged ?
+                       <>
+                        <Flag className="h-4 w-4" /> 
+                        <span className="pr-4"/>
+                       </>
+                      : ''}
+                       {si + 1}.{subI + 1}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden">
+
+      {/* ── Instructions modal ── */}
+      {instructionsOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4">
+          <div className="bg-background w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl flex flex-col max-h-[92dvh] sm:max-h-[90vh] shadow-2xl">
+            <div className="flex items-center gap-3 px-4 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 border-b border-primary/20 shrink-0">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 rounded-xl bg-green-100 text-green-600 grid place-items-center">
+                <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-semibold tracking-tight">Exam Instructions</h2>
+                <p className="text-[11px] sm:text-xs text-gray-500">Read carefully before you begin</p>
+              </div>
+              <div className="ml-auto hidden sm:flex gap-2 text-xs">
+                {[
+                  { label: "Questions", value: `${questions.length}` },
+                  { label: "Duration", value: "2h 15m" },
+                  { label: "Topics", value: `${sections.length}` },
+                ].map((s) => (
+                  <div key={s.label} className="rounded-lg bg-gradient-to-br border border-primary/20 px-2.5 sm:px-3 py-1.5 text-center">
+                    <div className="text-gray-500 text-[10px]">{s.label}</div>
+                    <div className="font-semibold text-xs mt-0.5">{s.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <div className="flex sm:hidden gap-2 px-4 pt-3">
+                {[
+                  { label: "Questions", value: `${questions.length}` },
+                  { label: "Duration", value: "2h 15m" },
+                  { label: "Topics", value: `${sections.length}` },
+                ].map((s) => (
+                  <div key={s.label} className="flex-1 rounded-lg bg-gradient-to-br border border-primary/20 px-2 py-1.5 text-center">
+                    <div className="text-gray-500 text-[10px]">{s.label}</div>
+                    <div className="font-semibold text-[11px] mt-0.5">{s.value}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 sm:px-6 pt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {INSTRUCTIONS.map((item) => (
+                  <div key={item.title} className="flex items-start gap-2.5 rounded-xl bg-gradient-to-br border border-primary/20 p-3">
+                    <div className="h-6 w-6 shrink-0 rounded-md bg-green-100 text-green-600 grid place-items-center mt-0.5">
+                      <item.icon className="h-3 w-3" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold">{item.title}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{item.body}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mx-4 sm:mx-6 mt-3 mb-1 rounded-xl bg-amber-50 border border-amber-200 px-3 sm:px-3.5 py-2.5 flex items-start sm:items-center gap-2">
+                <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5 sm:mt-0" />
+                <p className="text-xs text-gray-600">
+                  <span className="font-semibold text-gray-800">The timer starts</span> only after you click Begin Exam. Make sure you are ready before proceeding.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 px-4 sm:px-6 pt-3 pb-4 sm:pb-5 border-t border-primary/20 shrink-0">
+              <Link
+                to="/dashboard"
+                className="flex-1 text-center text-sm py-2.5 rounded-lg bg-background border border-primary/20 transition-colors text-forground"
+              >
+                Go back
+              </Link>
+              <button
+                onClick={() => setInstructionsOpen(false)}
+                className="flex-1 inline-flex items-center justify-center gap-2 text-sm py-2.5 rounded-lg font-medium transition-colors text-white hover:cursor-pointer"
+                style={{ background: "#4caf50" }}
+              >
+                Begin Exam <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dark header ── */}
+      <header className="bg-background">
+        <div className="container m-auto h-14 shrink-0 flex items-center px-2.5 sm:px-4 md:px-6 gap-2 sm:gap-4">
+          {/* Left: Question / Section info */}
+          <div className="text-[11px] sm:text-xs leading-snug shrink-0 sm:min-w-[90px]">
+            <div className="font-bold">
+              <span className="hidden sm:inline">Question: </span>
+              <span className="sm:hidden">Q</span>{idx + 1}
+            </div>
+            <div style={{ color: "#9ca3af" }}>
+              <span className="hidden sm:inline">Section: </span>
+              <span className="sm:hidden">Sec </span>{currentSectionIdx + 1}
+            </div>
+          </div>
+
+          {/* Center: Timer + Progress */}
+          <div className="flex-1 flex items-center justify-center gap-2 sm:gap-3 md:gap-5 min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-white shrink-0">
+              <Clock className="h-4 w-4 shrink-0" style={{ color: "#9ca3af" }} />
+              <div>
+                <div className="hidden sm:block text-[10px] leading-none" style={{ color: "#9ca3af" }}>Section Time Remaining:</div>
+                <div
+                  className="text-xs sm:text-sm font-mono font-bold text-muted-foreground leading-tight mt-0.5 tabular-nums"
+                  // style={{ color: lowTime && !instructionsOpen ? "#f87171" : "#ffffff" }}
+                >
+                  {instructionsOpen ? "00:14:59" : `${hh}:${mm}:${ss}`}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1 min-w-[56px] sm:min-w-[100px] md:min-w-[140px]">
+              <div className="w-full h-2 rounded-full overflow-hidden bg-accent">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progress}%`, background: "#4caf50" }}
+                  // style={{ width: `${progress}%`, background: "#ffffff" }}
+                />
+              </div>
+              <div className="hidden sm:block text-[10px]" style={{ color: "#9ca3af" }}>Progress {progress}%</div>
+            </div>
+          </div>
+
+          {/* Right: Finish Test */}
+          <button
+            onClick={() => setConfirm(true)}
+            disabled={instructionsOpen}
+            className="h-9 px-2.5 sm:px-4 md:px-5 rounded-lg text-xs sm:text-sm font-bold text-white disabled:opacity-40 transition-colors shrink-0 hover:cursor-pointer"
+            style={{ background: "#4caf50" }}
+            // style={{ background: "#e8c84a", color: "#1c2333" }}
+          >
+            <span className="hidden sm:inline">Finish Test</span>
+            <span className="sm:hidden">Finish</span>
+          </button>
+        </div>
+      </header>
+
+      {/* ── Green info bar ── */}
+      <div
+        // className="h-9 shrink-0 flex items-center justify-between gap-2 px-2.5 sm:px-4 md:px-6 text-[11px] sm:text-sm"
+        style={{ background: "#4caf50" }}
+      >
+        <div className="container m-auto h-9 shrink-0 flex items-center text-white justify-between gap-2 px-2.5 sm:px-4 md:px-6 text-[11px] sm:text-sm">
+          <span className="truncate"><strong>ACE Exam Portal</strong></span>
+          <span className="truncate shrink-0"><strong>Candidate : </strong>{user?.name ?? "Guest"}</span>
+        </div>
+      </div>
+
+      {/* ── Body: left sidebar + main content ── */}
+        <div className="container m-auto flex-1 flex overflow-hidden">
+          {/* Left sidebar (desktop) */}
+          <aside className="hidden md:block w-1/4 shrink-0 border-x border-primary/20 overflow-y-auto py-2 px-2
+            [&::-webkit-scrollbar]:w-2
+            [&::-webkit-scrollbar-track]:bg-primary/20
+            [&::-webkit-scrollbar-thumb]:bg-[#4caf50]
+          ">
+            {renderPalette(false)}
+          </aside>
+
+          {/* Main question content */}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-background border border-primary/20 rounded-xl shadow-sm p-4 sm:p-5 md:p-8">
+                {/* Topic + flag badge */}
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  <span
+                    className="text-xs px-2.5 py-1 rounded-full font-medium border"
+                    style={{color: "#15803d", borderColor: "#15803d" }}
+                  >
+                    {q.topic}
+                  </span>
+                  <span className="text-xs text-gray-400">Question {idx + 1} of {questions.length}</span>
+                  {flagged.has(q.id) && (
+                    <span
+                      className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border"
+                      style={{color: "#b45309", borderColor: "#b45309" }}
+                    >
+                      <Flag className="h-3 w-3" /> Flagged
+                    </span>
+                  )}
+                </div>
+
+                {/* Question text */}
+                <p className="text-base md:text-lg leading-relaxed">{q.prompt}</p>
+
+                {/* Answer options */}
+                <div className="mt-6 space-y-3">
+                  {q.options.map((opt) => {
+                    const selected = answers[q.id] === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => setAnswers({ ...answers, [q.id]: opt.key })}
+                        className="w-full text-left flex items-start gap-4 p-4 rounded-lg border-2 border-primary/20 transition-all"
+                        style={
+                          selected
+                            ? { borderColor: "#4caf50"}
+                            : {}
+                        }
+                        // style={
+                        //   selected
+                        //     ? { borderColor: "#4caf50", background: "#f0fdf4" }
+                        //     : { borderColor: "#d1d5db", background: "#ffffff" }
+                        // }
+                      >
+                        <span
+                          className="h-7 w-7 shrink-0 rounded grid place-items-center text-sm font-bold transition-colors"
+                          style={
+                            selected
+                              ? { background: "#4caf50", color: "#ffffff" }
+                              : { background: "#f3f4f6", color: "#6b7280" }
+                          }
+                        >
+                          {opt.key}
+                        </span>
+                        <span className="text-sm pt-0.5 leading-relaxed">{opt.text}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+
+      {/* ── Bottom toolbar ── */}
+      <div className="h-14 shrink-0 bg-background border-t border-primary/20 px-2.5 sm:px-4 md:px-6">
+        <div className="container m-auto h-14 flex items-center justify-between gap-2 px-2.5 sm:px-4 md:px-6">
+          {/* Left section: Palette + Settings + Filter */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Question palette toggle (mobile / tablet) */}
+            <button
+              onClick={() => setPaletteOpen(true)}
+              className="md:hidden h-9 w-9 rounded-lg border border-primary/20 grid place-items-center text-muted-foreground transition-colors"
+              aria-label="Open question palette"
+            >
+              <ListOrdered className="h-4 w-4" />
+            </button>
+
+            {/* Settings icon */}
+            <button
+              className="hidden sm:grid h-9 w-9 rounded-lg border border-primary/20 place-items-center text-muted-foreground transition-colors"
+              aria-label="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+
+            {/* Filter button with dropdown */}
+            <div className="relative" ref={filterRef}>
+              <button
+                onClick={() => setFilterOpen(!filterOpen)}
+                className="h-9 px-2.5 sm:px-3 flex items-center gap-1.5 rounded-lg border border-primary/20 text-sm text-muted-foreground font-medium transition-colors"
+                style={
+                  filterType !== "all"
+                    ? { borderColor: "#86efac", color: "#15803d" }
+                    : {}
+                }
+                aria-label="Filter questions"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span className="hidden sm:inline">{filterLabel}</span>
+                {filterType !== "all" && (
+                  <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#4caf50" }} />
+                )}
+                <ChevronDown className={`h-3 w-3 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {filterOpen && (
+                <div className="absolute bottom-11 left-0 bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-48 z-50">
+                  <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide border-b border-gray-100" style={{ color: "#9ca3af" }}>
+                    Filter Questions
+                  </div>
+                  {(
+                    [
+                      { label: "All Questions", value: "all" },
+                      { label: "Flagged", value: "flagged" },
+                      { label: "Attempted", value: "attempted" },
+                      { label: "Not Attempted", value: "not-attempted" },
+                    ] as { label: string; value: FilterType }[]
+                  ).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => { setFilterType(opt.value); setFilterOpen(false); }}
+                      className="w-full text-left px-4 py-2.5 text-sm flex items-center gap-2 transition-colors hover:bg-gray-50"
+                      style={filterType === opt.value ? { background: "#f0fdf4", color: "#15803d", fontWeight: 500 } : { color: "#374151" }}
+                    >
+                      {filterType === opt.value && (
+                        <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ background: "#4caf50" }} />
+                      )}
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right section: Flag + Previous + Next */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Flag button */}
+            <button
+              onClick={toggleFlag}
+              className="h-9 px-2.5 sm:px-3 flex items-center gap-1.5 rounded-lg border border-primary/20 text-muted-foreground text-sm font-medium transition-colors"
+              style={
+                flagged.has(q.id)
+                  ? {color: "#b45309"}
+                  : {}
+              }
+            >
+              <Flag className="h-4 w-4" />
+              <span className="hidden sm:inline">{flagged.has(q.id) ? "Unflag" : "Flag"}</span>
+            </button>
+
+            {/* Previous button */}
+            <button
+              onClick={() => setIdx(Math.max(0, idx - 1))}
+              disabled={idx === 0}
+              className="h-9 px-2.5 sm:px-4 flex items-center gap-1.5 rounded-lg border border-primary/20 text-sm text-muted-foreground disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Previous</span>
+            </button>
+
+            {/* Next button */}
+            <button
+              onClick={() => setIdx(Math.min(questions.length - 1, idx + 1))}
+              disabled={idx === questions.length - 1}
+              className="h-9 px-2.5 sm:px-4 flex items-center gap-1.5 rounded-lg text-sm font-bold text-white disabled:opacity-40 transition-colors"
+              style={{ background: "#4caf50" }}
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Mobile/tablet question palette sheet ── */}
+      {paletteOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setPaletteOpen(false)}
+        >
+          <div
+            className="bg-white w-full rounded-t-2xl flex flex-col max-h-[75dvh] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
+              <h3 className="text-sm font-semibold text-gray-900">Question Palette</h3>
+              <button
+                onClick={() => setPaletteOpen(false)}
+                className="h-8 w-8 grid place-items-center rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+                aria-label="Close question palette"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="overflow-y-auto py-2">
+              {renderPalette(true)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Exit-attempt warning ── */}
+      {exitAttempt && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="h-11 w-11 rounded-full bg-red-100 text-red-600 grid place-items-center">
+              <Lock className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-gray-900">Exam in progress</h3>
+            <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+              You cannot leave this exam without submitting. Complete your exam and click{" "}
+              <strong className="text-gray-900">Finish Test</strong> to exit.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setExitAttempt(false)}
+                className="flex-1 text-sm py-2.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700"
+              >
+                Continue exam
+              </button>
+              <button
+                onClick={() => { setExitAttempt(false); setConfirm(true); }}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2.5 rounded-lg text-white font-medium transition-colors"
+                style={{ background: "#4caf50" }}
+              >
+                <CheckCircle2 className="h-4 w-4" /> Submit now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Submit confirm dialog ── */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 grid place-items-center">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-gray-900">Submit your exam?</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              You answered {Object.keys(answers).length} of {questions.length} questions.
+              You can't return to this session after submitting.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <button
+                onClick={() => setConfirm(false)}
+                className="text-sm px-4 py-2 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-700"
+              >
+                Keep going
+              </button>
+              <Link
+                to="/results/$resultId"
+                params={{ resultId: mockId }}
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg text-white font-medium"
+                style={{ background: "#4caf50" }}
+              >
+                <CheckCircle2 className="h-4 w-4" /> Submit now
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

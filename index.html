@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kaplan CFA Mock Portal</title>
+    <meta name="description" content="Premium CFA mock exam platform. Full-length timed mocks, adaptive analytics, and structured assessments to ace the CFA exam." />
+    <script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()</script>
+    <style>
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0f1e;
+        z-index: 9999;
+      }
+      html.dark #initial-loader { background: #0a0f1e; }
+      html:not(.dark) #initial-loader { background: #f8fafc; }
+      #initial-loader .spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(99,102,241,0.2);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="initial-loader"><div class="spinner"></div></div>
+    <div id="root"></div>
+    <script type="module" src="/src/entry-client.tsx"></script>
+  </body>
+</html>
