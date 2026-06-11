@@ -192,7 +192,10 @@ function ExamPage() {
         </div>
       )}
       {filterType !== 'all' && !noSidebarResults ? 
-        <div className="flex justify-end mb-2">
+        <div className="px-2 flex justify-between items-center mb-2">
+            <p className="">
+              <span className="truncate"><strong>{filterLabel}</strong></span>
+            </p>
             <button
             className="flex justify-center px-3 py-1.5 rounded text-sm font-medium border border-red-300 text-red-500 transition-colors mt-2 hover:cursor-pointer "
             onClick={()=>setFilterType('all')}
