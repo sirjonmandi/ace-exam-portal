@@ -4,7 +4,8 @@ import { RouterProvider, createRouter, createHashHistory } from "@tanstack/react
 import { QueryClient } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import "./styles.css";
-
+import { Provider } from "react-redux";
+import { store } from '@/store'
 const queryClient = new QueryClient();
 
 function RoutePending() {
@@ -34,6 +35,8 @@ document.getElementById("initial-loader")?.remove();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <Provider store={store}>
+      <RouterProvider router={router} />
+    </Provider>
   </StrictMode>
 );

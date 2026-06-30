@@ -1292,7 +1292,7 @@ export const m1PmQuestions: Question[] = [
     options: [
       { key: "A", text: "liquid." },
       { key: "B", text: "flexible." },
-      { key: "C", text: "transparent." },
+      { key: "C", text: " " },
     ], answer: "B",
   },
   {

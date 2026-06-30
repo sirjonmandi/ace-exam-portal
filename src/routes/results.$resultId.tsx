@@ -37,9 +37,10 @@ function ResultPage() {
   },[]);
   const getResult = () =>{
     let result = localStorage.getItem(resultId);
-    console.log('====================================');
-    console.log(JSON.parse(result));
-    console.log('====================================');
+    if (!result) return ;
+    // console.log('====================================');
+    // console.log(JSON.parse(result));
+    // console.log('====================================');
     let fresh = JSON.parse(result);
     setCorrect(fresh.summary.correctCount)
     setWrong(fresh.summary.wrongCount)
