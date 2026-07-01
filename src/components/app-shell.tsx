@@ -56,8 +56,8 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
     navigate({ to: "/login" });
   }
 

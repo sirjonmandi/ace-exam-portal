@@ -56,8 +56,13 @@ function persistUser(user: User) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(user));
 }
 
+function setToken(token: string) {
+  localStorage.setItem("authToken", token);
+}
+
 export function clearStoredUser() {
   localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem("authToken");
 }
 
 export function loginUser(
@@ -71,6 +76,12 @@ export function loginUser(
   if (!match) return null;
   const { password: _pw, ...user } = match;
   persistUser(user);
+  return user;
+}
+
+export function setUserInfo(user: User, token: string) {
+  persistUser(user);
+  setToken(token);
   return user;
 }
 

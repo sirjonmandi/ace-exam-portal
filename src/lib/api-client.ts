@@ -41,10 +41,10 @@ apiClient.interceptors.response.use(
         case 401:
           console.error("Unauthorized");
 
-          localStorage.removeItem("token");
-
+          localStorage.removeItem("authToken");
+          localStorage.removeItem("ace_session");
           // Optional:
-          // window.location.href = "/login";
+          window.location.href = "/login";
 
           break;
 

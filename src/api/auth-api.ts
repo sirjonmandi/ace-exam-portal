@@ -14,4 +14,5 @@ export interface RegisterRequest {
 export const AuthAPI = {
     login:(data: LoginRequest) => apiClient.post('/auth/client/login',data),
     register:(data: RegisterRequest) =>apiClient.post('/auth/client/register',data),
+    logout: () => apiClient.post('/auth/client/logout'),
 }

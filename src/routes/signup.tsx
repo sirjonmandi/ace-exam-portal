@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { AuthLayout, Field } from "./login";
+import { AuthLayout, Field, PasswordField } from "./login";
 import { useAuth } from "@/lib/auth-context";
 import { getStoredUser } from "@/lib/auth";
 
@@ -18,9 +18,11 @@ function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +32,7 @@ function Signup() {
       return;
     }
     setLoading(true);
-    const result = await signup(name, email, password);
+    const result = await signup(name, email, password, confirmPassword);
     setLoading(false);
     if (result.error) {
       setError(result.error);
@@ -58,12 +60,22 @@ function Signup() {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <Field
+        <PasswordField
           label="Password"
-          type="password"
           placeholder="At least 8 characters"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          showPassword={showPassword}
+          togglePassword={() => setShowPassword((prev) => !prev)}
+          required
+        />
+        <PasswordField
+          label="Confirm Password"
+          placeholder="Re-enter your password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          showPassword={showPassword}
+          togglePassword={() => setShowPassword((prev) => !prev)}
           required
         />
         <label className="flex items-start gap-2 text-xs text-muted-foreground">

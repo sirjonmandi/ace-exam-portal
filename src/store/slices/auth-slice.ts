@@ -1,5 +1,6 @@
 import { AuthAPI } from '@/api/auth-api';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { log } from 'node:console';
 
 interface User {
   id: string;
@@ -51,54 +52,43 @@ export const login = createAsyncThunk<
             email,
             password,
         });
-
-        // response.data should contain:
-        // {
-        //   token,
-        //   refreshToken,
-        //   user
-        // }
-
       return response.data;
     } catch (error) {
         return rejectWithValue(
-            error?.response?.data?.message || 'Login failed'
+            error?.response?.data?.message || error?.message || 'Login failed'
         );
     }
   }
 );
 
+export const register = createAsyncThunk<LoginResponse, { name: string; email: string; password: string; confirmPassword: string }, { rejectValue: string }>(
+  'auth/register',
+  async ({ name, email, password, confirmPassword }, { rejectWithValue }) => {
+    if (password !== confirmPassword) {
+      return rejectWithValue('Passwords do not match');
+    }
+    try {
+      const response = await AuthAPI.register({ name, email, password, password_confirmation: confirmPassword });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error?.response?.data?.message || error?.message || 'Signup failed'
+      );
+    }
+  }
+);
+
+export const logout = createAsyncThunk('auth/logout', async () => {
+  const response = await AuthAPI.logout();
+  return response.data;
+});
+
 const authSlice = createSlice({
     name:'auth',
     initialState,
-    reducers:{
-        loginStart: (state) => {
-        state.loading = true;
-        state.error = null;
-        },
-        loginSuccess: (state, action: PayloadAction<{ user: User; token: string }>) => {
-        state.loading = false;
-        state.isAuthenticated = true;
-        state.user = action.payload.user;
-        state.token = action.payload.token;
-        state.error = null;
-        },
-        loginFailure: (state, action: PayloadAction<string>) => {
-        state.loading = false;
-        state.error = action.payload;
-        },
-        logout: (state) => {
-        state.isAuthenticated = false;
-        state.user = null;
-        state.token = null;
-        // state.refreshToken = null;
-        state.error = null;
-        },
-    },
-
+    reducers:{},
     extraReducers: (builder) => {
         builder
-
         // LOGIN PENDING
         .addCase(login.pending, (state) => {
             state.loading = true;
@@ -118,10 +108,58 @@ const authSlice = createSlice({
 
         // LOGIN FAILED
         .addCase(login.rejected, (state, action) => {
+            console.log('Login failed:', action.payload);
             state.loading = false;
             state.error = action.payload ?? 'Login failed';
             state.isAuthenticated = false;
         });
+
+        builder
+        // REGISTER PENDING
+        .addCase(register.pending, (state) => {
+            state.loading = true;
+            state.error = null;
+        })
+
+        // REGISTER SUCCESS
+        .addCase(register.fulfilled, (state, action) => {
+            state.loading = false;
+            state.isAuthenticated = true;
+            state.user = action.payload.user;
+            state.token = action.payload.token;
+            // state.refreshToken = action.payload.refreshToken;
+            state.error = null;
+            state.isInitialized = true;
+        })
+
+        // REGISTER FAILED
+        .addCase(register.rejected, (state, action) => {
+            console.log('Register failed:', action.payload);
+            state.loading = false;
+            state.error = action.payload ?? 'Register failed';
+            state.isAuthenticated = false;
+        });
+
+        // LOGOUT PENDING
+        builder
+        .addCase(logout.pending, (state) => {
+            state.loading = true;
+            state.error = null;
+        })
+        .addCase(logout.fulfilled, (state) => {
+            state.loading = false;
+            state.isAuthenticated = false;
+            state.user = null;
+            state.token = null;
+            // state.refreshToken = null;
+            state.error = null;
+            state.isInitialized = true;
+        })
+        .addCase(logout.rejected, (state, action) => {
+            state.loading = false;
+            state.error = action.payload ?? 'Logout failed';
+        });
+
     },
 });
 

@@ -3,6 +3,17 @@ import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
 import { getStoredUser } from "@/lib/auth";
+import { Eye, EyeOff } from "lucide-react";
+
+interface PasswordFieldProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  required?: boolean;
+  showPassword: boolean;
+  togglePassword: () => void;
+}
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -21,6 +32,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Navigate once auth state confirms user is logged in
   useEffect(() => {
@@ -28,12 +40,17 @@ function Login() {
   }, [user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    const result = await login(email, password);
-    setLoading(false);
-    if (result.error) setError(result.error);
+    try {
+      e.preventDefault();
+      setError("");
+      setLoading(true);
+      const result = await login(email, password);
+      setLoading(false);
+      if (result.error) setError(result.error);
+    } catch (error) {
+      setLoading(false);
+      setError("An unexpected error occurred. Please try again.");
+    }
   }
 
   function fillDemo() {
@@ -77,13 +94,13 @@ function Login() {
           autoComplete="email"
           required
         />
-        <Field
+        <PasswordField
           label="Password"
-          type="password"
-          placeholder="••••••••"
           value={password}
+          placeholder="••••••••"
           onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
+          showPassword={showPassword}
+          togglePassword={() => setShowPassword((prev) => !prev)}
           required
         />
         <div className="flex items-center justify-between text-xs">
@@ -164,5 +181,41 @@ export function Field({
         className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-sm outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground"
       />
     </label>
+  );
+}
+
+export function PasswordField({
+  label,
+  placeholder,
+  value,
+  onChange,
+  required,
+  showPassword,
+  togglePassword, 
+}: PasswordFieldProps) {
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium">{label}</label>
+
+      <div className="relative">
+        <input
+          type={showPassword ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          required={required}
+          className="w-full h-10 px-3 rounded-lg bg-surface border border-border text-sm outline-none focus:ring-2 focus:ring-ring focus:border-ring placeholder:text-muted-foreground"
+        />
+
+        <button
+          type="button"
+          onClick={togglePassword}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          disabled={!value}
+        >
+          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+    </div>
   );
 }
