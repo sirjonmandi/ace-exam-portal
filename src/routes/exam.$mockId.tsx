@@ -10,6 +10,8 @@ import {
   Settings, SlidersHorizontal, ChevronDown, ChevronUp, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store";
 export const Route = createFileRoute("/exam/$mockId")({
   beforeLoad: () => {
     if (typeof window !== "undefined" && !getStoredUser()) throw redirect({ to: "/login" });
@@ -76,6 +78,8 @@ function ExamPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
+  
+  const { mock } = useSelector((state: RootState) => state.mocks);
 
   // --- NEW TRACKING REFS ---
   const trackingMetricsRef = useRef<Record<string, QuestionMetrics>>({});
@@ -141,6 +145,26 @@ function ExamPage() {
       }, 1000);
 
       return () => clearInterval(t);
+    }, [seconds, mockId, navigate, instructionsOpen]);
+    
+    // Block navigation away once exam starts
+    useEffect(() => {
+    if (instructionsOpen) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = () => {
+      window.history.pushState(null, "", window.location.href);
+      setExitAttempt(true);
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
     }, [instructionsOpen]);
 
   // Close filter dropdown on outside click
@@ -158,9 +182,6 @@ function ExamPage() {
   const sections = useMemo(() => {
     const topicOrder: string[] = [];
     const topicMap = new Map<string, number[]>();
-    // console.log('====================================');
-    // console.log(JSON.stringify(questions,null,2));
-    // console.log('====================================');
     questions.forEach((q, i) => {
       if (!topicMap.has(q.topic)) {
         topicMap.set(q.topic, []);
@@ -430,9 +451,9 @@ function ExamPage() {
               </div>
               <div className="ml-auto hidden sm:flex gap-2 text-xs">
                 {[
-                  { label: "Questions", value: `${questions.length}` },
-                  { label: "Duration", value: "2h 15m" },
-                  { label: "Topics", value: `${sections.length}` },
+                  { label: "Questions", value: `${ mock?.total_questions ?? questions.length}` },
+                  { label: "Duration", value: `${ mock?.formatted_duration ?? "2h 15m" }` },
+                  { label: "Topics", value: `${ mock?.mock_modules_count ?? sections.length}` },
                 ].map((s) => (
                   <div key={s.label} className="rounded-lg bg-gradient-to-br border border-primary/20 px-2.5 sm:px-3 py-1.5 text-center">
                     <div className="text-gray-500 text-[10px]">{s.label}</div>
@@ -444,9 +465,9 @@ function ExamPage() {
             <div className="overflow-y-auto flex-1">
               <div className="flex sm:hidden gap-2 px-4 pt-3">
                 {[
-                  { label: "Questions", value: `${questions.length}` },
-                  { label: "Duration", value: "2h 15m" },
-                  { label: "Topics", value: `${sections.length}` },
+                  { label: "Questions", value: `${ mock?.total_questions ?? questions.length}` },
+                  { label: "Duration", value: `${ mock?.formatted_duration ?? "2h 15m" }` },
+                  { label: "Topics", value: `${ mock?.mock_modules_count ?? sections.length}` },
                 ].map((s) => (
                   <div key={s.label} className="flex-1 rounded-lg bg-gradient-to-br border border-primary/20 px-2 py-1.5 text-center">
                     <div className="text-gray-500 text-[10px]">{s.label}</div>
