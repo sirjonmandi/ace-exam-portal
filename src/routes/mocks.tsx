@@ -122,7 +122,7 @@ function MocksPage() {
                 // <Link to="/exam/$mockId" params={{ mockId:m.id }} className="flex-1 text-center text-xs py-2 rounded-md bg-primary text-primary-foreground font-medium">
                 //   <Play className="h-3 w-3 inline mr-1" /> Start
                 // </Link>
-                <button onClick={()=>onClickMock(m)} className="flex-1 text-center text-xs py-2 rounded-md bg-primary text-primary-foreground font-medium">
+                <button onClick={()=>onClickMock(m)} className="flex-1 text-center text-xs py-2 rounded-md bg-primary text-primary-foreground font-medium cursor-pointer">
                     <Play className="h-3 w-3 inline mr-1" /> Start
                 </button>
               ) : (
