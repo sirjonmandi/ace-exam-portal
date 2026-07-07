@@ -1,9 +1,11 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getStoredUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
-// import { subjectBreakdown } from "@/lib/mock-data";
 import { Trophy, Clock, Target, XCircle, CheckCircle2, ArrowRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { getMockResult } from "@/store/slices/mock-slice";
+import { RootState } from "@/store";
 
 export const Route = createFileRoute("/results/$resultId")({
   beforeLoad: () => {
@@ -13,54 +15,38 @@ export const Route = createFileRoute("/results/$resultId")({
   component: ResultPage,
 });
 
+function secondsToHM(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  return hours > 0
+    ? `${hours}h${String(minutes).padStart(2, '0')}m`
+    : `${minutes}m`;
+}
+
 function ResultPage() {
+  const dispatch = useDispatch();
   const { resultId } = Route.useParams();
-  const [correct, setCorrect] = useState<Number>(0);
-  const [wrong, setWrong] = useState<Number>(0);
-  const [total, setTotal] = useState<Number>(0);
-  const [pct, setPct] = useState<Number>(0);
-  const [passed, setPassed] = useState<Boolean>(false);
-  const [timeSpend, setTimeSpend] = useState<string>('');
-  const [subjectBreakdown, setSubjectBreakdown] = useState<[any]>([{}]);
 
-  function secondsToHM(seconds) {
-      const hours = Math.floor(seconds / 3600);
-      const minutes = Math.floor((seconds % 3600) / 60);
+  useEffect(() => {
+    dispatch(getMockResult(resultId) as any);
+  }, [resultId]);
 
-      return hours > 0
-          ? `${hours}h${String(minutes).padStart(2, '0')}m`
-          : `${minutes}m`;
-  }
+  const { mockResult } = useSelector((state: RootState) => state.mocks);
 
-  useEffect(()=>{
-    getResult()
-  },[]);
-  const getResult = () =>{
-    let result = localStorage.getItem(resultId);
-    if (!result) return ;
-    // console.log('====================================');
-    // console.log(JSON.parse(result));
-    // console.log('====================================');
-    let fresh = JSON.parse(result);
-    setCorrect(fresh.summary.correctCount)
-    setWrong(fresh.summary.wrongCount)
-    setTotal(fresh.summary.totalQuestions)
-    setPct(Math.round((fresh.summary.correctCount / fresh.summary.totalQuestions) * 100))
-    setPassed(Math.round((fresh.summary.correctCount / fresh.summary.totalQuestions) * 100) >= 70)
-    setTimeSpend(secondsToHM(fresh.summary.totalTimeSpent))
-    setSubjectBreakdown(
-    (fresh.subjectStats || []).map((s: any) => ({
-      subject: s.subject,
-      score: Math.round((s.score / s.total) * 100),
-      total: s.total,
-    }))
-  );
-  }
-  // const correct = 68;
-  // const wrong = 22;
-  // const total = correct + wrong;
-  // const pct = Math.round((correct / total) * 100);
-  // const passed = pct >= 70;
+  if (!mockResult) return null;
+
+  const { summary, subjectStats } = mockResult;
+  const name = summary.mockName;
+  const cfaLevel = summary.cfaLevel === 'one' ? '1' : summary.cfaLevel === 'two' ? '2' :summary.cfaLevel === 'three' ? '3' : 'N/A';
+  const totalTime = secondsToHM(summary.totalTime * 60);
+  const correct = summary.correctCount;
+  const wrong = summary.wrongCount;
+  const total = summary.totalQuestions;
+  const pct = summary.percentage;
+  const passed = summary.passed;
+  const timeSpend = secondsToHM(summary.totalTimeSpent);
+  const subjectBreakdown = subjectStats;
 
   return (
     <AppShell title="Mock Result">
@@ -71,7 +57,7 @@ function ResultPage() {
         <div className="flex-1">
           <div className="text-xs text-muted-foreground uppercase tracking-wider">{resultId}</div>
           <h1 className="text-2xl font-semibold mt-1">{passed ? "You passed this mock" : "Keep going — almost there"}</h1>
-          <p className="text-sm text-muted-foreground mt-1">CFA Level 1 — Morning Session · 90 questions · 2h 15m</p>
+          <p className="text-sm text-muted-foreground mt-1">CFA Level {cfaLevel} — {name} · {total} questions · {totalTime}</p>
         </div>
         <div className={`px-4 py-3 rounded-xl border ${passed ? "bg-success/10 border-success/30 text-success" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
           <div className="text-xs uppercase tracking-wider">{passed ? "PASS" : "FAIL"}</div>
@@ -135,7 +121,13 @@ function ResultPage() {
             <h2 className="text-base font-semibold">Next Steps</h2>
             <p className="text-sm text-muted-foreground mt-1">Review explanations, focus on weak topics, and retry.</p>
             <div className="mt-4 space-y-2">
-              <button className="w-full text-sm py-2 rounded-lg bg-primary text-primary-foreground font-medium">Review Answers</button>
+              <Link
+                to="/results/$resultId/review"
+                params={{ resultId }}
+                className="w-full inline-flex items-center justify-center text-sm py-2 rounded-lg bg-primary text-primary-foreground font-medium"
+              >
+                Review Answer & Insight
+              </Link>
               <Link to="/mocks" className="w-full inline-flex items-center justify-center gap-1 text-sm py-2 rounded-lg bg-surface border border-border hover:bg-accent">
                 Take Next Mock <ArrowRight className="h-4 w-4" />
               </Link>

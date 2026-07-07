@@ -139,7 +139,7 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center gap-3 justify-center mb-8">
           <div className="h-10 w-10 rounded-lg bg-primary/20 text-primary grid place-items-center font-bold">CFA</div>
-          <div className="text-sm font-semibold">Kaplan CFA Mock Portal</div>
+          <div className="text-sm font-semibold">CFA Mock Portal</div>
         </Link>
         <div className="card-elevated rounded-2xl p-7">
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>

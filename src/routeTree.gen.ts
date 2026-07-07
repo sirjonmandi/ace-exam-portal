@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResultsIndexRouteImport } from './routes/results.index'
 import { Route as ResultsResultIdRouteImport } from './routes/results.$resultId'
 import { Route as ExamMockIdRouteImport } from './routes/exam.$mockId'
+import { Route as ResultsResultIdReviewRouteImport } from './routes/results.$resultId_.review'
 
 const StudyPlanRoute = StudyPlanRouteImport.update({
   id: '/study-plan',
@@ -76,6 +77,11 @@ const ExamMockIdRoute = ExamMockIdRouteImport.update({
   path: '/exam/$mockId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResultsResultIdReviewRoute = ResultsResultIdReviewRouteImport.update({
+  id: '/results/$resultId_/review',
+  path: '/results/$resultId/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/exam/$mockId': typeof ExamMockIdRoute
   '/results/$resultId': typeof ResultsResultIdRoute
   '/results/': typeof ResultsIndexRoute
+  '/results/$resultId/review': typeof ResultsResultIdReviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/exam/$mockId': typeof ExamMockIdRoute
   '/results/$resultId': typeof ResultsResultIdRoute
   '/results': typeof ResultsIndexRoute
+  '/results/$resultId/review': typeof ResultsResultIdReviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/exam/$mockId': typeof ExamMockIdRoute
   '/results/$resultId': typeof ResultsResultIdRoute
   '/results/': typeof ResultsIndexRoute
+  '/results/$resultId_/review': typeof ResultsResultIdReviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +140,7 @@ export interface FileRouteTypes {
     | '/exam/$mockId'
     | '/results/$resultId'
     | '/results/'
+    | '/results/$resultId/review'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/exam/$mockId'
     | '/results/$resultId'
     | '/results'
+    | '/results/$resultId/review'
   id:
     | '__root__'
     | '/'
@@ -157,6 +168,7 @@ export interface FileRouteTypes {
     | '/exam/$mockId'
     | '/results/$resultId'
     | '/results/'
+    | '/results/$resultId_/review'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +183,7 @@ export interface RootRouteChildren {
   ExamMockIdRoute: typeof ExamMockIdRoute
   ResultsResultIdRoute: typeof ResultsResultIdRoute
   ResultsIndexRoute: typeof ResultsIndexRoute
+  ResultsResultIdReviewRoute: typeof ResultsResultIdReviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExamMockIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/results/$resultId_/review': {
+      id: '/results/$resultId_/review'
+      path: '/results/$resultId/review'
+      fullPath: '/results/$resultId/review'
+      preLoaderRoute: typeof ResultsResultIdReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +287,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExamMockIdRoute: ExamMockIdRoute,
   ResultsResultIdRoute: ResultsResultIdRoute,
   ResultsIndexRoute: ResultsIndexRoute,
+  ResultsResultIdReviewRoute: ResultsResultIdReviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

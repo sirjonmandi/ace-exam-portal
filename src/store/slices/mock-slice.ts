@@ -1,7 +1,6 @@
 import { clientAPI } from '@/api/client-api';
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
-import { log } from 'console';
 
 interface Mock {
   id: string;
@@ -13,6 +12,8 @@ interface Mock {
   duration_minutes: number;
   formatted_duration: string;
   mock_modules_count: number;
+  progress:number | null;
+  submission_status:string | null;
 }
 
 interface MockQuestion {
@@ -49,12 +50,42 @@ interface GetMocksResponse {
   };
 }
 
+export interface Results {
+  id:string;
+  name:string;
+  cfaLevel:string;
+  score:number;
+  status:string;
+}
+
 interface MockState {
   mocks: Mock[];
   mock: Mock | null;
   mockQuestions: MockQuestion[];
   loading: boolean;
   error: string | null;
+  mockResult: {
+    summary: {
+      mockName: string;
+      cfaLevel: string;
+      totalTime: number;
+      correctCount: number;
+      wrongCount: number;
+      attempted: number;
+      notAttempted: number;
+      totalQuestions: number;
+      totalTimeSpent: number;
+      overallTimeLeft: number;
+      percentage: number;
+      passed: boolean;
+    };
+    subjectStats: {
+      subject: string;
+      score: number;
+      total: number;
+    }[];
+  } | null;
+  results: Results [];
 }
 
 const initialState: MockState = {
@@ -63,6 +94,24 @@ const initialState: MockState = {
   mockQuestions: [],
   loading: false,
   error: null,
+  mockResult: {
+    summary: {
+      mockName: "",
+      cfaLevel: "",
+      totalTime: 0,
+      correctCount: 0,
+      wrongCount: 0,
+      attempted: 0,
+      notAttempted: 0,
+      totalQuestions: 0,
+      totalTimeSpent: 0,
+      overallTimeLeft: 0,
+      percentage: 0,
+      passed: false
+    },
+    subjectStats: []
+  },
+  results: [],
 };
 
 export const getMocks = createAsyncThunk<
@@ -131,12 +180,60 @@ export const submitMockExam = createAsyncThunk('mock/submitMockExam', async ({ m
   }
 });
 
+export const getMockResult = createAsyncThunk('mock/getMockResult', async (resultId: string) => {
+  try {
+    if (!resultId) throw new Error('Result ID is required');
+    const response = await clientAPI.getMockResult(resultId);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message ?? 'Failed to get mock result'
+      );
+    }
+    throw new Error('Something went wrong');
+  }
+});
+
+export const getResults = createAsyncThunk('mock/getResults', async () => {
+  try {
+    const response = await clientAPI.getMockResults();
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(
+        error.response?.data?.message ?? 'Failed to get mock result'
+      );
+    }
+    throw new Error('Something went wrong');
+  }
+});
+
 const mockSlice = createSlice({
   name: 'mock',
   initialState,
   reducers: {
     setMock: (state, action) => {
       state.mock = action.payload;
+    },
+    resetMockResult: (state) => {
+      state.mockResult = {
+        summary: {
+          mockName: "",
+          cfaLevel: "",
+          totalTime: 0,
+          correctCount: 0,
+          wrongCount: 0,
+          attempted: 0,
+          notAttempted: 0,
+          totalQuestions: 0,
+          totalTimeSpent: 0,
+          overallTimeLeft: 0,
+          percentage: 0,
+          passed: false
+        },
+        subjectStats: []
+      };
     }
   },
 
@@ -203,6 +300,57 @@ const mockSlice = createSlice({
       .addCase(submitMockExam.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message ?? 'Failed to submit mock exam';
+      });
+    
+    builder
+      .addCase(getMockResult.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getMockResult.fulfilled, (state, action) => {
+        // console.log('Mock result retrieved successfully:', action.payload.data.summary.wrong_count);
+        state.loading = false;
+
+        state.mockResult.summary.mockName = action.payload.data.summary.mock_name;
+        state.mockResult.summary.cfaLevel = action.payload.data.summary.cfa_level;
+        state.mockResult.summary.totalTime = action.payload.data.summary.total_time;
+        state.mockResult.summary.correctCount = action.payload.data.summary.correct_count;
+        state.mockResult.summary.wrongCount = action.payload.data.summary.wrong_count;
+        state.mockResult.summary.attempted = action.payload.data.summary.attempted;
+        state.mockResult.summary.totalQuestions = action.payload.data.summary.total_questions;
+        state.mockResult.summary.totalTimeSpent = action.payload.data.summary.total_time_spent;
+        state.mockResult.summary.percentage = action.payload.data.summary.percentage;
+        state.mockResult.summary.passed = action.payload.data.summary.percentage >= 70;
+        state.mockResult.subjectStats = action.payload.data.subjects.map((s: any) => ({
+          subject: s.subject,
+          score: s.score,
+          total: s.total,
+        }));
+
+        state.error = null;
+      })
+      .addCase(getMockResult.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message ?? 'Failed to get mock result';
+      });
+
+    builder
+      .addCase(getResults.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getResults.fulfilled, (state, action) => {
+        // console.log('Mock result retrieved successfully:', action.payload.data.summary.wrong_count);
+        state.loading = false;
+        state.results = action.payload.data.map((res:any) => ({
+          ...res,
+          cfaLevel:res.cfa_level,
+        }))
+        state.error = null;
+      })
+      .addCase(getResults.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message ?? 'Failed to get mock result';
       });
   },
 });

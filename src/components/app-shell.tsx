@@ -73,7 +73,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
         <Link to="/" className="flex items-center gap-3 px-5 h-16 border-b border-sidebar-border">
           <div className="h-9 w-9 rounded-lg bg-primary/20 text-primary grid place-items-center font-bold text-sm tracking-tight">CFA</div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Kaplan Portal</div>
+            <div className="text-sm font-semibold">CFA Portal</div>
             <div className="text-[11px] text-muted-foreground">Mock Practice</div>
           </div>
         </Link>
@@ -92,7 +92,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
               <Link to="/" onClick={() => setDrawerOpen(false)} className="flex items-center gap-3">
                 <div className="h-9 w-9 rounded-lg bg-primary/20 text-primary grid place-items-center font-bold text-sm">CFA</div>
                 <div className="leading-tight">
-                  <div className="text-sm font-semibold">Kaplan Portal</div>
+                  <div className="text-sm font-semibold">CFA Portal</div>
                   <div className="text-[11px] text-muted-foreground">Mock Practice</div>
                 </div>
               </Link>
@@ -123,7 +123,7 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           {/* Mobile: brand */}
           <Link to="/" className="md:hidden flex items-center gap-2 min-w-0">
             <div className="h-7 w-7 rounded-md bg-primary/20 text-primary grid place-items-center font-bold text-xs shrink-0">CFA</div>
-            <span className="text-sm font-semibold truncate">Kaplan Portal</span>
+            <span className="text-sm font-semibold truncate">CFA Portal</span>
           </Link>
 
           {/* Desktop: page title */}

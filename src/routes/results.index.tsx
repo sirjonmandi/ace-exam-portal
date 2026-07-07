@@ -2,6 +2,10 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getStoredUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 import { mocks } from "@/lib/mock-data";
+import { useDispatch, useSelector } from "react-redux";
+import { useEffect } from "react";
+import { getResults } from "@/store/slices/mock-slice";
+import { RootState } from "@/store";
 
 export const Route = createFileRoute("/results/")({
   beforeLoad: () => {
@@ -12,6 +16,13 @@ export const Route = createFileRoute("/results/")({
 });
 
 function ResultsIndex() {
+  const dispatch = useDispatch();
+
+  useEffect(()=>{
+    dispatch(getResults() as any);
+  },[]);
+
+  const { results } = useSelector((state:RootState) => state.mocks);
   const sessions = mocks.flatMap((m) => m.sessions.map((s) => ({ ...s, mock: m })));
   return (
     <AppShell title="Results">
@@ -31,19 +42,19 @@ function ResultsIndex() {
             </tr>
           </thead>
           <tbody>
-            {sessions.map((s) => (
+            {results && results.map((s) => (
               <tr key={s.id} className="border-t border-border">
-                <td className="px-5 py-4">{s.mock.title}</td>
-                <td className="px-5 py-4 text-muted-foreground">{s.name}</td>
+                <td className="px-5 py-4">CFA Level {s.cfaLevel === 'one' ? '1' : s.cfaLevel === 'two' ? '2' : s.cfaLevel === 'three' ? '3' : 'N/A'} - {s.name}</td>
+                <td className="px-5 py-4 text-muted-foreground"> Afternoon Session</td>
                 <td className="px-5 py-4">
-                  <span className={`text-[11px] px-2 py-0.5 rounded-md border ${
-                    s.status === "completed" ? "bg-success/15 text-success border-success/30" :
+                  <span className={`capitalize text-[11px] px-2 py-0.5 rounded-md border ${
+                    s.status === "submitted" ? "bg-success/15 text-success border-success/30" :
                     s.status === "available" ? "bg-primary/15 text-primary border-primary/30" :
                     "bg-destructive/10 text-destructive border-destructive/30"}`}>{s.status}</span>
                 </td>
-                <td className="px-5 py-4 tabular-nums text-muted-foreground">{s.status === "completed" ? "76%" : "—"}</td>
+                <td className="px-5 py-4 tabular-nums text-muted-foreground">{s.score ? s.score + ' %' : "—"}</td>
                 <td className="px-5 py-4 text-right">
-                  {s.status === "completed" ? (
+                  {s.status === "submitted" ? (
                     <Link to="/results/$resultId" params={{ resultId: s.id }} className="text-xs px-3 py-1.5 rounded-md bg-surface border border-border hover:bg-accent">View</Link>
                   ) : s.status === "available" ? (
                     <Link to="/exam/$mockId" params={{ mockId: s.id }} className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground">Start</Link>

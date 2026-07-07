@@ -22,39 +22,6 @@ export const Route = createFileRoute("/exam/$mockId")({
   component: ExamPage,
 });
 
-// const INSTRUCTIONS = [
-//   {
-//     icon: Clock,
-//     title: "Time limit",
-//     body: "You have 2 hours 15 minutes to complete this session. The countdown begins the moment you click Begin Exam.",
-//   },
-//   {
-//     icon: BookOpenCheck,
-//     title: "Questions",
-//     body: "This session contains 90 questions spanning 10 CFA Level 1 topic areas. Each question has exactly one correct answer.",
-//   },
-//   {
-//     icon: ListOrdered,
-//     title: "Navigation",
-//     body: "Use the Previous / Next buttons or the Question Palette to move between questions. You can revisit any question before submitting.",
-//   },
-//   {
-//     icon: Flag,
-//     title: "Flagging",
-//     body: "Flag questions you are unsure about and return to them later. Flagged questions are highlighted in the palette.",
-//   },
-//   {
-//     icon: MousePointerClick,
-//     title: "Submitting",
-//     body: "Click Finish Test when you are ready. You will be asked to confirm before the session is closed.",
-//   },
-//   {
-//     icon: ShieldAlert,
-//     title: "Important",
-//     body: "Once submitted, you cannot re-enter this session. Ensure you have answered all intended questions before submitting.",
-//   },
-// ];
-
 type FilterType = "all" | "flagged" | "attempted" | "not-attempted";
 
 type QuestionMetrics = {
@@ -87,6 +54,7 @@ function ExamPage() {
   const [exitAttempt, setExitAttempt] = useState(false);
   const [instructionsOpen, setInstructionsOpen] = useState(true);
   const [beginLoading, setBeginLoading] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [beginError, setBeginError] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -386,9 +354,18 @@ function ExamPage() {
 
     // TODO: Dispatch 'trackingReport' to your backend API here
     // console.log("Final Analytics Payload:", data);
-    
-    dispatch(submitMockExam({ mockId, data }) as any)
-    navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+    // dispatch(submitMockExam({ mockId, data }) as any)
+    try {
+      setSubmitLoading(true);
+      const result: any = await (dispatch(submitMockExam({ mockId, data }) as any) as any);
+      if (result.meta.requestStatus === "fulfilled") {
+        navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+      }
+    } catch (error) {
+      console.error("Error submitting exam:", error);
+    } finally {
+      setSubmitLoading(false);
+    }
   }
 
   const handleBeginExam = async () => {
@@ -997,8 +974,13 @@ function ExamPage() {
                 className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg text-white font-medium hover:cursor-pointer"
                 style={{ background: "#4caf50" }}
                 onClick={handleSubmit}
-              >
-                <CheckCircle2 className="h-4 w-4" /> Submit now
+                disabled={submitLoading}
+              > 
+              {submitLoading ? (
+                <>Submitting <Loader2 className="h-4 w-4 animate-spin" /></>
+              ) : (
+                <><CheckCircle2 className="h-4 w-4" /> Submit now </>
+              )}
               </button>
             </div>
           </div>
