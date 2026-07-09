@@ -51,16 +51,16 @@ function ResultPage() {
   return (
     <AppShell title="Mock Result">
       <div className="rounded-2xl bg-hero-grad border border-border p-6 md:p-8 flex flex-col md:flex-row gap-6 items-start md:items-center">
-        <div className={`h-20 w-20 rounded-2xl grid place-items-center ${passed ? "bg-success/15 text-success border border-success/30" : "bg-destructive/15 text-destructive border border-destructive/30"}`}>
+        <div className={`h-20 w-20 rounded-2xl grid place-items-center ${passed === 'pass' ? "bg-success/15 text-success border border-success/30" : "bg-destructive/15 text-destructive border border-destructive/30"}`}>
           <Trophy className="h-8 w-8" />
         </div>
         <div className="flex-1">
           <div className="text-xs text-muted-foreground uppercase tracking-wider">{resultId}</div>
-          <h1 className="text-2xl font-semibold mt-1">{passed ? "You passed this mock" : "Keep going — almost there"}</h1>
+          <h1 className="text-2xl font-semibold mt-1">{passed === 'pass' ? "You passed this mock" : "Keep going — almost there"}</h1>
           <p className="text-sm text-muted-foreground mt-1">CFA Level {cfaLevel} — {name} · {total} questions · {totalTime}</p>
         </div>
-        <div className={`px-4 py-3 rounded-xl border ${passed ? "bg-success/10 border-success/30 text-success" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
-          <div className="text-xs uppercase tracking-wider">{passed ? "PASS" : "FAIL"}</div>
+        <div className={`px-4 py-3 rounded-xl border ${passed === 'pass' ? "bg-success/10 border-success/30 text-success" : "bg-destructive/10 border-destructive/30 text-destructive"}`}>
+          <div className="text-xs uppercase tracking-wider">{passed ==='pass' ? "PASS" : passed === 'fail' ? "FAIL" : "IN PROGRESS"}</div>
           <div className="text-3xl font-semibold tabular-nums">{pct}%</div>
         </div>
       </div>
@@ -92,12 +92,12 @@ function ResultPage() {
               <div key={s.subject}>
                 <div className="flex items-center justify-between text-xs">
                   <span>{s.subject}</span>
-                  <span className="text-muted-foreground tabular-nums">{s.score}%</span>
+                  <span className="text-muted-foreground tabular-nums">{(s.score/s.total)*100}%</span>
                 </div>
                 <div className="mt-1.5 h-2 rounded-full bg-surface-elevated overflow-hidden">
                   <div
-                    className={`h-full ${s.score >= 75 ? "bg-success" : s.score >= 65 ? "bg-primary" : "bg-warning"}`}
-                    style={{ width: `${s.score}%` }}
+                    className={`h-full ${(s.score/s.total)*100 <50 ? "bg-destructive" : (s.score/s.total)*100 <= 70 ? "bg-warning" : "bg-success"}`}
+                    style={{ width: `${(s.score/s.total)*100}%` }}
                   />
                 </div>
               </div>
@@ -109,10 +109,10 @@ function ResultPage() {
           <div className="card-elevated rounded-2xl p-6">
             <h2 className="text-base font-semibold">Weak Topics</h2>
             <ul className="mt-4 space-y-3">
-              { subjectBreakdown.length > 0 && subjectBreakdown.filter((s) => s.score < 70).map((s) => (
+              { subjectBreakdown.length > 0 && subjectBreakdown.filter((s) => (s.score/s.total)*100 < 70).map((s) => (
                 <li key={s.subject} className="flex items-center justify-between rounded-lg bg-surface border border-border px-3 py-2.5">
                   <span className="text-sm">{s.subject}</span>
-                  <span className="text-xs text-warning">{s.score}%</span>
+                  <span className="text-xs text-warning">{(s.score/s.total)*100}%</span>
                 </li>
               ))}
             </ul>

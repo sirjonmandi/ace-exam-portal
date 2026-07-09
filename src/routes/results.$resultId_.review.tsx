@@ -26,24 +26,9 @@ export const Route = createFileRoute("/results/$resultId_/review")({
   component: ReviewInsightsPage,
 });
 
-const PASS_MARK = 70;
-
-// Published CFA Level 1 curriculum topic weights, keyed by normalized topic name.
-const TOPIC_WEIGHTS: Record<string, string> = {
-  "ethical and professional standards": "15–20%",
-  "quantitative methods": "6–9%",
-  economics: "6–9%",
-  "financial statement analysis": "11–14%",
-  "corporate issuers": "6–9%",
-  "equity investments": "11–14%",
-  "fixed income": "11–14%",
-  derivatives: "5–8%",
-  "alternative investments": "7–10%",
-  "portfolio management": "8–12%",
-};
-
 function scoreColor(score: number) {
-  return score >= 75 ? "var(--success)" : score >= 65 ? "var(--primary)" : "var(--warning)";
+  // return score >= 75 ? "var(--success)" : score >= 65 ? "var(--primary)" : "var(--warning)";
+  return score >= 70 ? "var(--success)" : score >= 50 ? "var(--warning)" : "var(--destructive)";
 }
 
 function secondsToHM(seconds: number) {
@@ -68,15 +53,32 @@ function ReviewInsightsPage() {
   const { summary, subjectStats } = mockResult;
   const cfaLevel =
     summary.cfaLevel === "one" ? "1" : summary.cfaLevel === "two" ? "2" : summary.cfaLevel === "three" ? "3" : "N/A";
-  const pct = summary.percentage;
   const passed = summary.passed;
-  const margin = Math.abs(pct - PASS_MARK);
+  const score = summary.scaledScore;
+  const mps = summary.mps;
+  const maxScore = summary.maxScore;
+  const margin = Math.abs(score - mps);
+
+  const STEP = 100;
+  const ticks = Array.from(
+    { length: Math.floor(maxScore / STEP) + 1 },
+    (_, i) => i * STEP
+  );
+
+  const scorePosition = (score / maxScore) * 100;
+  const mpsPosition = (mps / maxScore) * 100;
 
   const strongest = subjectStats.length > 0
     ? subjectStats.reduce((a, b) => (b.score > a.score ? b : a))
     : null;
   const weakest = subjectStats.length > 0
     ? subjectStats.reduce((a, b) => (b.score < a.score ? b : a))
+    : null;
+  const strongSubjects = subjectStats.length > 0
+    ? subjectStats.filter((s) => (s.score/s.total)*100 >= 70)
+    : null;
+  const weakSubjects = subjectStats.length > 0 
+    ? subjectStats.filter((s) => (s.score/s.total)*100 < 70)
     : null;
 
   return (
@@ -108,17 +110,17 @@ function ReviewInsightsPage() {
           </div>
           <div className="flex justify-between border-b border-border/60 py-1.5">
             <span className="text-muted-foreground">Result</span>
-            <span className={`font-medium ${passed ? "text-success" : "text-destructive"}`}>
-              {passed ? "Passed" : "Not Passed"}
+            <span className={`font-medium ${passed === "pass" ? "text-success" : "text-destructive"}`}>
+              {passed === "pass" ? "Passed" : "Not Passed"}
             </span>
           </div>
           <div className="flex justify-between border-b border-border/60 py-1.5">
             <span className="text-muted-foreground">Your Score</span>
-            <span className="font-medium tabular-nums">{pct}%</span>
+            <span className="font-medium tabular-nums">{score}</span>
           </div>
           <div className="flex justify-between border-b border-border/60 py-1.5">
             <span className="text-muted-foreground">Minimum Passing Score (MPS)</span>
-            <span className="font-medium tabular-nums">{PASS_MARK}%</span>
+            <span className="font-medium tabular-nums">{mps}</span>
           </div>
         </div>
       </div>
@@ -131,8 +133,8 @@ function ReviewInsightsPage() {
 
         <div className="mt-8 mb-3 relative h-14">
           <div className="absolute top-1/2 left-0 right-0 h-px bg-border" />
-          {[0, 25, 50, 75, 100].map((tick) => (
-            <div key={tick} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${tick}%` }}>
+          {ticks.map((tick) => (
+            <div key={tick} className="absolute top-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${(tick / maxScore) * 100}%` }}>
               <div className="h-2.5 w-px bg-border" />
               <div className="mt-2.5 text-[11px] text-muted-foreground tabular-nums">{tick}</div>
             </div>
@@ -140,24 +142,24 @@ function ReviewInsightsPage() {
 
           <div
             className="absolute top-0 bottom-0 border-l border-dashed border-warning flex flex-col items-center"
-            style={{ left: `${PASS_MARK}%` }}
+            style={{ left: `${mpsPosition}%` }}
           >
-            <div className="-mt-1 -translate-x-1/2 text-[11px] text-warning whitespace-nowrap">Pass mark {PASS_MARK}%</div>
+            <div className="-mt-1 -translate-x-1/2 text-[11px] text-warning whitespace-nowrap">Pass mark {mps}</div>
           </div>
 
           <div
             className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex flex-col items-center"
-            style={{ left: `${pct}%` }}
+            style={{ left: `${scorePosition}%` }}
           >
-            <div className={`h-3.5 w-3.5 rounded-full border-2 border-background ${passed ? "bg-success" : "bg-destructive"}`} />
-            <div className={`mt-1.5 text-xs font-semibold whitespace-nowrap ${passed ? "text-success" : "text-destructive"}`}>
-              Your score {pct}%
+            <div className={`h-3.5 w-3.5 rounded-full border-2 border-background ${passed ==='pass' ? "bg-success" : "bg-destructive"}`} />
+            <div className={`mt-1.5 text-xs font-semibold whitespace-nowrap ${passed ==='pass' ? "text-success" : "text-destructive"}`}>
+              Your score {score}
             </div>
           </div>
         </div>
 
         <p className="text-xs text-muted-foreground mt-6">
-          You scored {margin}% {passed ? "above" : "below"} the minimum passing score.
+          You scored {score} {passed === 'pass' ? "above" : "below"} the minimum passing score.
         </p>
       </div>
 
@@ -185,7 +187,7 @@ function ReviewInsightsPage() {
                 height={70}
               />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
-              <ReferenceLine y={PASS_MARK} stroke="var(--warning)" strokeDasharray="4 4" label={{ value: `Pass mark ${PASS_MARK}%`, position: "insideTopLeft", fontSize: 11, fill: "var(--warning)" }} />
+              <ReferenceLine y={mpsPosition} stroke="var(--warning)" strokeDasharray="4 4" label={{ value: `Pass mark ${mps}`, position: "insideTopLeft", fontSize: 11, fill: "var(--warning)" }} />
               <Bar dataKey={(entry) => (entry.score / entry.total) * 100} radius={[4, 4, 0, 0]}>
                 {subjectStats.map((s) => (
                   <Cell key={s.subject} fill={scoreColor((s.score/s.total)*100)} opacity={0.5} />
@@ -208,10 +210,10 @@ function ReviewInsightsPage() {
               {subjectStats.map((s) => (
                 <tr key={s.subject} className="border-b border-border/60 last:border-0">
                   <td className="py-2 pr-4">{s.subject}</td>
-                  <td className="py-2 pr-4 tabular-nums" style={{ color: scoreColor(s.score) }}>{s.score}%</td>
+                  <td className="py-2 pr-4 tabular-nums" style={{ color: scoreColor((s.score/s.total)*100) }}>{(s.score/s.total)*100}%</td>
                   {cfaLevel === "1" && (
                     <td className="py-2 pr-4 text-muted-foreground">
-                      {TOPIC_WEIGHTS[s.subject.trim().toLowerCase()] ?? "—"}
+                      {s.weight ?? "—"}
                     </td>
                   )}
                 </tr>
@@ -226,21 +228,28 @@ function ReviewInsightsPage() {
           <h2 className="text-base font-semibold">Key Insights</h2>
           <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
             <li>
-              You scored <span className="font-medium text-foreground">{pct}%</span> ({summary.correctCount}/{summary.totalQuestions} correct),{" "}
-              {margin}% {passed ? "above" : "below"} the passing mark.
+              You scored <span className="font-medium text-foreground">{score}</span> ({summary.correctCount}/{summary.totalQuestions} correct),{" "}
+              {margin} {passed === 'pass' ? "above" : "below"} the passing mark.
             </li>
             <li>
               You attempted <span className="font-medium text-foreground">{summary.attempted}</span> of {summary.totalQuestions} questions
               {summary.notAttempted > 0 ? ` (${summary.notAttempted} skipped)` : ""}.
             </li>
-            {strongest && (
+            {strongSubjects && strongSubjects.length > 0 && (
               <li>
-                Strongest topic: <span className="font-medium text-foreground">{strongest.subject}</span> at {strongest.score}%.
+                Strongest topics: 
+                {strongSubjects.map((s)=>(
+                  <span className="font-medium text-foreground"> {s.subject},</span>
+                ))}
               </li>
             )}
-            {weakest && weakest !== strongest && (
+            {weakSubjects && weakSubjects.length > 0 && (
               <li>
-                Weakest topic: <span className="font-medium text-foreground">{weakest.subject}</span> at {weakest.score}% — focus your next review here.
+                Weakest topics: 
+                {weakSubjects?.map((s)=>(
+                  <span className="font-medium text-foreground"> {s.subject}, </span>
+                ))}
+                 — focus your next review here.
               </li>
             )}
             <li>

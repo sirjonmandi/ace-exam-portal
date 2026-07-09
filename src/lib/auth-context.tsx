@@ -8,7 +8,9 @@ import {
   logoutUser,
 } from "./auth";
 import { useDispatch } from "react-redux";
-import { login as Login, register as Register, logout as Logout } from "@/store/slices/auth-slice";
+import { login as Login, register as Register, logout as Logout, resetAuthSlice } from "@/store/slices/auth-slice";
+import { resetMockSlice } from "@/store/slices/mock-slice";
+import { resetPerformanceSlice } from "@/store/slices/performance-slice";
 interface AuthState {
   user: User | null;
   login: (email: string, password: string) => Promise<{ error?: string }>;
@@ -59,17 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(result.payload.data.user);
     return {};
-    // const result = registerUser(name, email, password);
-    // if ("error" in result) return { error: result.error };
-    // setUser(result.user);
-    // return {};
   }
 
   async function logout() {
     const result = await dispatch(Logout() as any);
     if (result.meta.requestStatus === "fulfilled") {
+      dispatch(resetMockSlice());
+      dispatch(resetAuthSlice());
+      dispatch(resetPerformanceSlice());
       logoutUser();
-      setUser(null);
     }
   }
 

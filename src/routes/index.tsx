@@ -9,9 +9,9 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Kaplan CFA Mock Portal — Master Your CFA Exam" },
+      { title: "CFA Mock Portal — Master Your CFA Exam" },
       { name: "description", content: "Premium CFA mock exam platform. Full-length timed mocks, adaptive analytics, and structured assessments to ace the CFA exam." },
-      { property: "og:title", content: "Kaplan CFA Mock Portal" },
+      { property: "og:title", content: "CFA Mock Portal" },
       { property: "og:description", content: "Master your CFA Exam with structured mock assessments." },
     ],
   }),
@@ -58,7 +58,7 @@ function Landing() {
         <Link to="/" className="flex items-center gap-2 md:gap-3">
           <div className="h-8 w-8 md:h-9 md:w-9 rounded-lg bg-primary/20 text-primary grid place-items-center font-bold text-sm shrink-0">CFA</div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold">Kaplan CFA Mock Portal</div>
+            <div className="text-sm font-semibold">CFA Mock Portal</div>
             <div className="text-[11px] text-muted-foreground hidden sm:block">Chartered Financial Analyst Practice</div>
           </div>
         </Link>

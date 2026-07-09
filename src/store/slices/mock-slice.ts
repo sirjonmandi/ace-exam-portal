@@ -14,6 +14,7 @@ interface Mock {
   mock_modules_count: number;
   progress:number | null;
   submission_status:string | null;
+  is_active: boolean;
 }
 
 interface MockQuestion {
@@ -56,6 +57,7 @@ export interface Results {
   cfaLevel:string;
   score:number;
   status:string;
+  result: 'pass' | 'fail',
 }
 
 interface MockState {
@@ -77,12 +79,16 @@ interface MockState {
       totalTimeSpent: number;
       overallTimeLeft: number;
       percentage: number;
-      passed: boolean;
+      passed: 'pass' | 'fail' | 'in_progress';
+      scaledScore: number,
+      mps: number,
+      maxScore: number,
     };
     subjectStats: {
       subject: string;
       score: number;
       total: number;
+      weight:number;
     }[];
   } | null;
   results: Results [];
@@ -213,6 +219,31 @@ const mockSlice = createSlice({
   name: 'mock',
   initialState,
   reducers: {
+    resetMockSlice: (state) => {
+      state.mocks= [];
+      state.mock= null;
+      state.mockQuestions= [];
+      state.loading= false;
+      state.error= null;
+      state.mockResult= {
+        summary: {
+          mockName: "",
+          cfaLevel: "",
+          totalTime: 0,
+          correctCount: 0,
+          wrongCount: 0,
+          attempted: 0,
+          notAttempted: 0,
+          totalQuestions: 0,
+          totalTimeSpent: 0,
+          overallTimeLeft: 0,
+          percentage: 0,
+          passed: false
+        },
+        subjectStats: []
+      };
+      state.results = [];
+    },
     setMock: (state, action) => {
       state.mock = action.payload;
     },
@@ -320,11 +351,15 @@ const mockSlice = createSlice({
         state.mockResult.summary.totalQuestions = action.payload.data.summary.total_questions;
         state.mockResult.summary.totalTimeSpent = action.payload.data.summary.total_time_spent;
         state.mockResult.summary.percentage = action.payload.data.summary.percentage;
-        state.mockResult.summary.passed = action.payload.data.summary.percentage >= 70;
+        state.mockResult.summary.passed = action.payload.data.summary.result;
+        state.mockResult.summary.scaledScore = action.payload.data.summary.scaled_score;
+        state.mockResult.summary.mps = action.payload.data.summary.mps;
+        state.mockResult.summary.maxScore = action.payload.data.summary.max_score;
         state.mockResult.subjectStats = action.payload.data.subjects.map((s: any) => ({
           subject: s.subject,
           score: s.score,
           total: s.total,
+          weight: s.weight,
         }));
 
         state.error = null;
@@ -355,6 +390,10 @@ const mockSlice = createSlice({
   },
 });
 
-export const { setMock } = mockSlice.actions;
+export const { 
+  setMock,
+  resetMockSlice,
+  resetMockResult,
+ } = mockSlice.actions;
 
 export default mockSlice.reducer;

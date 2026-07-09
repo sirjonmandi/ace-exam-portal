@@ -1,6 +1,5 @@
 import { AuthAPI } from '@/api/auth-api';
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { log } from 'node:console';
 
 interface User {
   id: string;
@@ -29,7 +28,6 @@ const initialState: AuthState = {
   isAuthenticated: false,
   user: null,
   token: null,
-//   refreshToken: null,
   loading: false,
   error: null,
   isInitialized: false,
@@ -86,7 +84,16 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 const authSlice = createSlice({
     name:'auth',
     initialState,
-    reducers:{},
+    reducers:{
+      resetAuthSlice:(state) => {
+        state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
+        state.loading = false;
+        state.error = null;
+        state.isInitialized = false;
+      }
+    },
     extraReducers: (builder) => {
         builder
         // LOGIN PENDING
@@ -163,4 +170,7 @@ const authSlice = createSlice({
     },
 });
 
+export const { 
+  resetAuthSlice
+ } = authSlice.actions;
 export default authSlice.reducer; 

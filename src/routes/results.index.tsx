@@ -35,7 +35,7 @@ function ResultsIndex() {
           <thead className="bg-surface text-xs text-muted-foreground uppercase tracking-wider">
             <tr>
               <th className="text-left px-5 py-3 font-medium">Mock</th>
-              <th className="text-left px-5 py-3 font-medium">Session</th>
+              <th className="text-left px-5 py-3 font-medium">Result</th>
               <th className="text-left px-5 py-3 font-medium">Status</th>
               <th className="text-left px-5 py-3 font-medium">Score</th>
               <th className="text-right px-5 py-3 font-medium">Action</th>
@@ -45,7 +45,11 @@ function ResultsIndex() {
             {results && results.map((s) => (
               <tr key={s.id} className="border-t border-border">
                 <td className="px-5 py-4">CFA Level {s.cfaLevel === 'one' ? '1' : s.cfaLevel === 'two' ? '2' : s.cfaLevel === 'three' ? '3' : 'N/A'} - {s.name}</td>
-                <td className="px-5 py-4 text-muted-foreground"> Afternoon Session</td>
+                <td className="px-5 py-4 text-muted-foreground">
+                  <span className={`capitalize text-[11px] px-2 py-0.5 rounded-md border ${
+                    s.result === "pass" ? "bg-success/15 text-success border-success/30" :
+                    "bg-destructive/10 text-destructive border-destructive/30"}`}>{s.result}</span></td>
+                {/* <td className="px-5 py-4 text-muted-foreground"> Afternoon Session</td> */}
                 <td className="px-5 py-4">
                   <span className={`capitalize text-[11px] px-2 py-0.5 rounded-md border ${
                     s.status === "submitted" ? "bg-success/15 text-success border-success/30" :
