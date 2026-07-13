@@ -18,7 +18,11 @@ interface PerformanceSlice {
         name:string;
         accuracy:string;
     }[] | null;
-    studyStreak:any;
+    studyStreak:{
+        date:string;
+        intensity:number;
+        mocksCompleted:number;
+    }[] | null;
     error:string | null;
     
 }
@@ -98,6 +102,11 @@ const performanceSlice = createSlice({
                     name:s.mock_name,
                     percentage:s.percentage,
                     createdAt:s.created_at,
+                }));
+                state.studyStreak = action.payload.data.study_streak.map((s:{date:string; intensity:number; mocks_completed:number})=>({
+                    date:s.date,
+                    intensity:s.intensity,
+                    mocksCompleted:s.mocks_completed,
                 }));
                 state.topicAccuracy = action.payload.data.topic_accuracy;
                 state.error = null;

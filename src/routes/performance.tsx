@@ -17,6 +17,7 @@ import {
   Cell,
   LabelList,
 } from "recharts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/performance")({
   beforeLoad: () => {
@@ -29,12 +30,8 @@ export const Route = createFileRoute("/performance")({
 function Performance() {
   const dispatch = useDispatch();
   
-  const { summary, mockProgress, topicAccuracy } = useSelector((state:RootState)=>state.performance);
-  const max = Math.max(...progressTrend.map((p) => p.score));
-  const chartData = progressTrend.map((p) => ({
-    mock: p.mock,
-    score: p.score,
-  }));
+  const { summary, mockProgress, topicAccuracy, studyStreak } = useSelector((state:RootState)=>state.performance);
+
   useEffect(()=>{
     dispatch(getPerformance() as any);
   },[])
@@ -159,21 +156,35 @@ function Performance() {
         </div>
       </div>
 
-      <div className="mt-6 card-elevated rounded-2xl p-6">
+      { studyStreak && studyStreak.length > 0 &&
+      (<div className="mt-6 card-elevated rounded-2xl p-6">
         <h2 className="text-base font-semibold">Study Streak</h2>
         <p className="text-sm text-muted-foreground mt-1">Last 30 days of activity</p>
-        <div className="mt-5 grid grid-cols-15 sm:grid-cols-30 gap-1.5" style={{ gridTemplateColumns: "repeat(30, minmax(0,1fr))" }}>
-          {Array.from({ length: 30 }).map((_, i) => {
-            const intensity = Math.random();
-            const cls =
-              intensity > 0.75 ? "bg-primary" :
-              intensity > 0.5 ? "bg-primary/60" :
-              intensity > 0.25 ? "bg-primary/30" :
-              "bg-surface-elevated";
-            return <div key={i} className={`aspect-square rounded ${cls}`} />;
-          })}
-        </div>
-      </div>
+        <TooltipProvider delayDuration={100}>
+          <div className="mt-5 grid grid-cols-15 sm:grid-cols-30 gap-1.5" style={{ gridTemplateColumns: "repeat(30, minmax(0,1fr))" }}>
+            {(studyStreak ?? []).map((day, i) => {
+              const cls =
+                day.intensity >= 4 ? "bg-primary" :
+                day.intensity === 3 ? "bg-primary/75" :
+                day.intensity === 2 ? "bg-primary/50" :
+                day.intensity === 1 ? "bg-primary/25" :
+                "bg-surface-elevated";
+              return (
+                <Tooltip key={day.date ?? i}>
+                  <TooltipTrigger asChild>
+                    <div className={`aspect-square rounded ${cls}`} />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {day.mocksCompleted} mock{day.mocksCompleted === 1 ? "" : "s"} completed
+                    {day.date ? ` · ${day.date}` : ""}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
+      </div>)
+      }
     </AppShell>
   );
 }
