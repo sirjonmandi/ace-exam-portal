@@ -14,7 +14,11 @@ interface Mock {
   mock_modules_count: number;
   progress:number | null;
   submission_status:string | null;
+  result_id:string | null;
   is_active: boolean;
+  is_retake:boolean;
+  is_unlocked:boolean;
+  unlock_name:string;
 }
 
 interface MockQuestion {
@@ -53,11 +57,13 @@ interface GetMocksResponse {
 
 export interface Results {
   id:string;
+  resultId:string;
   name:string;
   cfaLevel:string;
   score:number;
   status:string;
   result: 'pass' | 'fail',
+  submittedAt:string,
 }
 
 interface MockState {
@@ -113,7 +119,7 @@ const initialState: MockState = {
       totalTimeSpent: 0,
       overallTimeLeft: 0,
       percentage: 0,
-      passed: false
+      passed: false,
     },
     subjectStats: []
   },
@@ -379,7 +385,9 @@ const mockSlice = createSlice({
         state.loading = false;
         state.results = action.payload.data.map((res:any) => ({
           ...res,
+          resultId:res.result_id,
           cfaLevel:res.cfa_level,
+          submittedAt:res.submitted_at,
         }))
         state.error = null;
       })

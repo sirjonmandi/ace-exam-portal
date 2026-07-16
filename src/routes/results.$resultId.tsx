@@ -92,7 +92,7 @@ function ResultPage() {
               <div key={s.subject}>
                 <div className="flex items-center justify-between text-xs">
                   <span>{s.subject}</span>
-                  <span className="text-muted-foreground tabular-nums">{(s.score/s.total)*100}%</span>
+                  <span className="text-muted-foreground tabular-nums">{Math.round((s.score/s.total)*100)}%</span>
                 </div>
                 <div className="mt-1.5 h-2 rounded-full bg-surface-elevated overflow-hidden">
                   <div
@@ -112,7 +112,7 @@ function ResultPage() {
               { subjectBreakdown.length > 0 && subjectBreakdown.filter((s) => (s.score/s.total)*100 < 70).map((s) => (
                 <li key={s.subject} className="flex items-center justify-between rounded-lg bg-surface border border-border px-3 py-2.5">
                   <span className="text-sm">{s.subject}</span>
-                  <span className="text-xs text-warning">{(s.score/s.total)*100}%</span>
+                  <span className="text-xs text-warning">{Math.round((s.score/s.total)*100)}%</span>
                 </li>
               ))}
             </ul>

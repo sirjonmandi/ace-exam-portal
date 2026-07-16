@@ -23,7 +23,7 @@ function ResultsIndex() {
   },[]);
 
   const { results } = useSelector((state:RootState) => state.mocks);
-  const sessions = mocks.flatMap((m) => m.sessions.map((s) => ({ ...s, mock: m })));
+
   return (
     <AppShell title="Results">
       <h1 className="text-2xl font-semibold tracking-tight">Your Results</h1>
@@ -38,12 +38,13 @@ function ResultsIndex() {
               <th className="text-left px-5 py-3 font-medium">Result</th>
               <th className="text-left px-5 py-3 font-medium">Status</th>
               <th className="text-left px-5 py-3 font-medium">Score</th>
+              <th className="text-left px-5 py-3 font-medium">Date</th>
               <th className="text-right px-5 py-3 font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
             {results && results.map((s) => (
-              <tr key={s.id} className="border-t border-border">
+              <tr key={s.resultId} className="border-t border-border">
                 <td className="px-5 py-4">CFA Level {s.cfaLevel === 'one' ? '1' : s.cfaLevel === 'two' ? '2' : s.cfaLevel === 'three' ? '3' : 'N/A'} - {s.name}</td>
                 <td className="px-5 py-4 text-muted-foreground">
                   <span className={`capitalize text-[11px] px-2 py-0.5 rounded-md border ${
@@ -57,9 +58,10 @@ function ResultsIndex() {
                     "bg-destructive/10 text-destructive border-destructive/30"}`}>{s.status}</span>
                 </td>
                 <td className="px-5 py-4 tabular-nums text-muted-foreground">{s.score ? s.score + ' %' : "—"}</td>
+                <td className="px-5 py-4 tabular-nums text-muted-foreground">{s.submittedAt }</td>
                 <td className="px-5 py-4 text-right">
                   {s.status === "submitted" ? (
-                    <Link to="/results/$resultId" params={{ resultId: s.id }} className="text-xs px-3 py-1.5 rounded-md bg-surface border border-border hover:bg-accent">View</Link>
+                    <Link to="/results/$resultId" params={{ resultId: s.resultId }} className="text-xs px-3 py-1.5 rounded-md bg-surface border border-border hover:bg-accent">View</Link>
                   ) : s.status === "available" ? (
                     <Link to="/exam/$mockId" params={{ mockId: s.id }} className="text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground">Start</Link>
                   ) : (

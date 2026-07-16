@@ -359,7 +359,8 @@ function ExamPage() {
       setSubmitLoading(true);
       const result: any = await (dispatch(submitMockExam({ mockId, data }) as any) as any);
       if (result.meta.requestStatus === "fulfilled") {
-        navigate({ to: "/results/$resultId", params: { resultId: mockId } });
+        let resultId = result.payload.data.result_id;
+        navigate({ to: "/results/$resultId", params: { resultId: resultId } });
       }
     } catch (error) {
       console.error("Error submitting exam:", error);

@@ -210,7 +210,7 @@ function ReviewInsightsPage() {
               {subjectStats.map((s) => (
                 <tr key={s.subject} className="border-b border-border/60 last:border-0">
                   <td className="py-2 pr-4">{s.subject}</td>
-                  <td className="py-2 pr-4 tabular-nums" style={{ color: scoreColor((s.score/s.total)*100) }}>{(s.score/s.total)*100}%</td>
+                  <td className="py-2 pr-4 tabular-nums" style={{ color: scoreColor((s.score/s.total)*100) }}>{Math.round((s.score/s.total)*100)}%</td>
                   {cfaLevel === "1" && (
                     <td className="py-2 pr-4 text-muted-foreground">
                       {s.weight ?? "—"}

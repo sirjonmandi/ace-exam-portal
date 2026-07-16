@@ -22,7 +22,7 @@ function MocksPage() {
   const { mocks } = useSelector((state:RootState)=>state.mocks);
 
   useEffect(()=>{
-    dispatch(getMocks() as any);
+    dispatch(getMocks(1) as any);
   },[]);
 
   const onClickMock = (mock:any) =>{
@@ -118,17 +118,24 @@ function MocksPage() {
             </div>
 
             <div className="mt-5 flex gap-2">
-              {m.is_active ? (
+              {m.is_unlocked ? (
                 m.submission_status === 'submitted' ?
-                  <Link to="/results/$resultId" params={{ resultId: m.id }} className="flex-1 text-center text-xs py-2 rounded-md bg-success text-success-foreground font-medium">
+                <>
+                  <Link to="/results/$resultId" params={{ resultId: m.result_id ?? '' }} className="flex-1 text-center text-xs py-2 rounded-md bg-success text-success-foreground font-medium">
                     Review
                   </Link>
+                  {m.is_retake && (
+                    <button onClick={()=>onClickMock(m)} className="flex-1 text-center text-xs py-2 rounded-md bg-primary text-primary-foreground font-medium cursor-pointer">
+                        <Play className="h-3 w-3 inline mr-1" /> Retake
+                    </button>
+                  )}
+                </>
                  : <button onClick={()=>onClickMock(m)} className="flex-1 text-center text-xs py-2 rounded-md bg-primary text-primary-foreground font-medium cursor-pointer">
                     <Play className="h-3 w-3 inline mr-1" /> Start
                 </button>
               ) : (
                 <button disabled className="flex-1 text-center text-xs py-2 rounded-md bg-surface-elevated text-muted-foreground border border-border cursor-not-allowed">
-                  <Lock className="h-3 w-3 inline mr-1" /> Locked
+                  <Lock className="h-3 w-3 inline mr-1" /> <span className="hidden sm:inline">Complete {m.unlock_name ?? 'previous'} to </span>Unlock
                 </button>
               )}
             </div>
