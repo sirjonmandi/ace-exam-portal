@@ -1,8 +1,12 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { mocks, snapshot } from "@/lib/mock-data";
+import { mocks } from "@/lib/mock-data";
 import { ArrowRight, BookOpenCheck, BarChart3, CheckCircle2, Flame, Lock, Play } from "lucide-react";
 import { getStoredUser } from "@/lib/auth";
+import { useDispatch, useSelector } from "react-redux";
+import { useEffect } from "react";
+import { RootState } from "@/store";
+import { dashboard } from "@/store/slices/dashboard-slice";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: () => {
@@ -13,6 +17,13 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  const dispatch = useDispatch();
+  const { performance } = useSelector((state: RootState) => state.dashboard);
+
+  useEffect(() => {
+    dispatch(dashboard() as any);
+  }, []);
+
   return (
     <AppShell>
       {/* Hero */}
@@ -42,10 +53,10 @@ function Dashboard() {
           <div className="text-sm font-medium">Your Preparation Snapshot</div>
           <div className="grid grid-cols-2 gap-3 mt-4">
             {[
-              { label: "Mocks Completed", value: snapshot.mocksCompleted, icon: CheckCircle2 },
-              { label: "Questions Solved", value: snapshot.questionsSolved, icon: BookOpenCheck },
-              { label: "Average Score", value: snapshot.averageScore, icon: BarChart3 },
-              { label: "Study Streak", value: snapshot.studyStreak, icon: Flame },
+              { label: "Mocks Completed", value: performance.mock, icon: CheckCircle2 },
+              { label: "Questions Solved", value: performance.totalQuestionsSolved, icon: BookOpenCheck },
+              { label: "Average Score", value: `${performance.averageScore}%`, icon: BarChart3 },
+              { label: "Study Streak", value: `${performance.streakScore}d`, icon: Flame },
             ].map((s) => (
               <div key={s.label} className="rounded-xl bg-surface-elevated border border-border p-4">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">

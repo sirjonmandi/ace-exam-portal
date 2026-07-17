@@ -35,6 +35,7 @@ export interface Performance {
 }
 
 export const clientAPI = {
+    dashboard:():Promise<ApiResponse<Performance>>=>apiClient.get(`/dashboard`),
     getMocks:(page:number):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mocks?page=${page}`),
     getMockDetails:(mockId:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}`),
     getMockQuestions:(mockId:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}/questions`),

@@ -194,6 +194,15 @@ function ExamPage() {
       };
     }, [instructionsOpen]);
 
+    // Disable right-click context menu for the duration of the exam
+    useEffect(() => {
+      const handleContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+      };
+      document.addEventListener("contextmenu", handleContextMenu);
+      return () => document.removeEventListener("contextmenu", handleContextMenu);
+    }, []);
+
   // Close filter dropdown on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
