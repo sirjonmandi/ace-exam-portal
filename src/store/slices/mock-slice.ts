@@ -66,6 +66,13 @@ export interface Results {
   submittedAt:string,
 }
 
+export interface AnswerStat {
+  prompt: string;
+  options: { key: "A" | "B" | "C"; text: string }[];
+  correctOption: "A" | "B" | "C";
+  givenOption: "A" | "B" | "C" | null;
+}
+
 interface MockState {
   mocks: Mock[];
   mock: Mock | null;
@@ -98,6 +105,16 @@ interface MockState {
     }[];
   } | null;
   results: Results [];
+  answerStats: {
+    questions: AnswerStat[];
+    pagination: {
+      currentPage: number;
+      perPage: number;
+      total: number;
+      lastPage: number;
+      hasMorePages: boolean;
+    };
+  };
 }
 
 const initialState: MockState = {
@@ -124,6 +141,16 @@ const initialState: MockState = {
     subjectStats: []
   },
   results: [],
+  answerStats: {
+    questions: [],
+    pagination: {
+      currentPage: 1,
+      perPage: 10,
+      total: 0,
+      lastPage: 1,
+      hasMorePages: false,
+    },
+  },
 };
 
 export const getMocks = createAsyncThunk<
@@ -147,32 +174,34 @@ export const getMocks = createAsyncThunk<
   }
 });
 
-export const getMockDetails = createAsyncThunk('mock/getMockDetails', async (mockId: string) => {
+export const getMockDetails = createAsyncThunk('mock/getMockDetails', async (mockId: string,{ rejectWithValue }) => {
   try {
     const response = await clientAPI.getMockDetails(mockId);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        error.response?.data?.message ?? 'Failed to get mock details'
+      return rejectWithValue(
+        error.response?.data?.message ?? 'Failed to get mocks'
       );
     }
-    throw new Error('Something went wrong');
+
+    return rejectWithValue('Something went wrong');
   }
 });
 
-export const getMockQuestions = createAsyncThunk('mock/getMockQuestions', async (mockId?: string) => {
+export const getMockQuestions = createAsyncThunk('mock/getMockQuestions', async (mockId?: string,{ rejectWithValue }) => {
   try {
     if (!mockId) throw new Error('Mock ID is required');
     const response = await clientAPI.getMockQuestions(mockId);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        error.response?.data?.message ?? 'Failed to get mock questions'
+      return rejectWithValue(
+        error.response?.data?.message ?? 'Failed to get mocks'
       );
     }
-    throw new Error('Something went wrong');
+
+    return rejectWithValue('Something went wrong');
   }
 });
 
@@ -192,34 +221,50 @@ export const submitMockExam = createAsyncThunk('mock/submitMockExam', async ({ m
   }
 });
 
-export const getMockResult = createAsyncThunk('mock/getMockResult', async (resultId: string) => {
+export const getMockResult = createAsyncThunk('mock/getMockResult', async (resultId: string,{ rejectWithValue }) => {
   try {
     if (!resultId) throw new Error('Result ID is required');
     const response = await clientAPI.getMockResult(resultId);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        error.response?.data?.message ?? 'Failed to get mock result'
+      return rejectWithValue(
+        error.response?.data?.message ?? 'Failed to get mocks'
       );
     }
-    throw new Error('Something went wrong');
+    return rejectWithValue('Something went wrong');
   }
 });
 
-export const getResults = createAsyncThunk('mock/getResults', async () => {
+export const getResults = createAsyncThunk('mock/getResults', async (_,{ rejectWithValue }) => {
   try {
     const response = await clientAPI.getMockResults();
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        error.response?.data?.message ?? 'Failed to get mock result'
+      return rejectWithValue(
+        error.response?.data?.message ?? 'Failed to get mocks'
       );
     }
-    throw new Error('Something went wrong');
+
+    return rejectWithValue('Something went wrong');
   }
 });
+
+export const getAnswerStats = createAsyncThunk('mock/getAnswerStats', async ({mockAttemptId,pageNo}:{ mockAttemptId:string, pageNo:number },{ rejectWithValue }) => {
+  try {
+    const response = await clientAPI.getAnswerStats(mockAttemptId,pageNo);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      return rejectWithValue(
+        error.response?.data?.message ?? 'Failed to get mocks'
+      );
+    }
+
+    return rejectWithValue('Something went wrong');
+  }
+})
 
 const mockSlice = createSlice({
   name: 'mock',
@@ -249,6 +294,16 @@ const mockSlice = createSlice({
         subjectStats: []
       };
       state.results = [];
+      state.answerStats = {
+        questions: [],
+        pagination: {
+          currentPage: 1,
+          perPage: 10,
+          total: 0,
+          lastPage: 1,
+          hasMorePages: false,
+        },
+      };
     },
     setMock: (state, action) => {
       state.mock = action.payload;
@@ -392,6 +447,33 @@ const mockSlice = createSlice({
         state.error = null;
       })
       .addCase(getResults.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message ?? 'Failed to get mock result';
+      });
+    
+    builder
+      .addCase(getAnswerStats.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getAnswerStats.fulfilled, (state, action) => {
+        state.loading = false;
+        state.answerStats.questions = action.payload.data.map((q: any) => ({
+          prompt: q.prompt,
+          options: q.options,
+          correctOption: q.correct_option,
+          givenOption: q.given_option,
+        }));
+        state.answerStats.pagination = {
+          currentPage: action.payload.pagination.current_page,
+          perPage: action.payload.pagination.per_page,
+          total: action.payload.pagination.total,
+          lastPage: action.payload.pagination.last_page,
+          hasMorePages: action.payload.pagination.has_more_pages,
+        };
+        state.error = null;
+      })
+      .addCase(getAnswerStats.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message ?? 'Failed to get mock result';
       });

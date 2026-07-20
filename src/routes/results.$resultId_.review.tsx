@@ -2,10 +2,10 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getStoredUser } from "@/lib/auth";
 import { useAuth } from "@/lib/auth-context";
 import { AppShell } from "@/components/app-shell";
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useEffect } from "react";
+import { ArrowLeft, ArrowRight, CheckCircle2, XCircle, CircleDashed, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { getMockResult } from "@/store/slices/mock-slice";
+import { getMockResult, getAnswerStats } from "@/store/slices/mock-slice";
 import { RootState } from "@/store";
 import {
   Bar,
@@ -41,12 +41,17 @@ function ReviewInsightsPage() {
   const dispatch = useDispatch();
   const { resultId } = Route.useParams();
   const { user } = useAuth();
+  const [answerStatsPage, setAnswerStatsPage] = useState(1);
 
   useEffect(() => {
     dispatch(getMockResult(resultId) as any);
   }, [resultId]);
 
-  const { mockResult } = useSelector((state: RootState) => state.mocks);
+  useEffect(() => {
+    dispatch(getAnswerStats({ mockAttemptId: resultId, pageNo: answerStatsPage }) as any);
+  }, [resultId, answerStatsPage]);
+
+  const { mockResult, answerStats } = useSelector((state: RootState) => state.mocks);
 
   if (!mockResult) return null;
 
@@ -221,6 +226,101 @@ function ReviewInsightsPage() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-6 card-elevated rounded-2xl p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Answer-wise Stats</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Review each question, your answer, and the correct option.
+            </p>
+          </div>
+          {answerStats.pagination.total > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {answerStats.pagination.total} questions
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5 space-y-4">
+          {answerStats.questions.map((q, idx) => {
+            const questionNumber = (answerStats.pagination.currentPage - 1) * answerStats.pagination.perPage + idx + 1;
+            const isCorrect = q.givenOption === q.correctOption;
+            const isSkipped = !q.givenOption;
+
+            return (
+              <div key={idx} className="rounded-xl border border-border p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <p className="text-sm font-medium">
+                    <span className="text-muted-foreground">Q{questionNumber}.</span> {q.prompt}
+                  </p>
+                  {isSkipped ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      <CircleDashed className="h-3.5 w-3.5" /> Not Attempted
+                    </span>
+                  ) : isCorrect ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-success whitespace-nowrap">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Correct
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive whitespace-nowrap">
+                      <XCircle className="h-3.5 w-3.5" /> Incorrect
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-1.5">
+                  {q.options.map((opt) => {
+                    const isCorrectOption = opt.key === q.correctOption;
+                    const isGivenOption = opt.key === q.givenOption;
+                    return (
+                      <div
+                        key={opt.key}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm ${
+                          isCorrectOption
+                            ? "border-success/40 bg-success/10 text-success"
+                            : isGivenOption
+                              ? "border-destructive/40 bg-destructive/10 text-destructive"
+                              : "border-border/60 text-muted-foreground"
+                        }`}
+                      >
+                        <span className="font-medium">{opt.key}.</span>
+                        <span className="flex-1">{opt.text}</span>
+                        {isCorrectOption && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />}
+                        {isGivenOption && !isCorrectOption && <XCircle className="h-3.5 w-3.5 shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {answerStats.pagination.lastPage > 1 && (
+          <div className="mt-5 flex items-center gap-4 justify-end">
+            <button
+              type="button"
+              onClick={() => setAnswerStatsPage((p) => Math.max(1, p - 1))}
+              disabled={answerStats.pagination.currentPage <= 1}
+              className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg border border-border hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
+            >
+              <ChevronLeft className="h-4 w-4" /> Previous
+            </button>
+            <span className="text-xs text-muted-foreground">
+              Page {answerStats.pagination.currentPage} of {answerStats.pagination.lastPage}
+            </span>
+            <button
+              type="button"
+              onClick={() => setAnswerStatsPage((p) => Math.min(answerStats.pagination.lastPage, p + 1))}
+              disabled={!answerStats.pagination.hasMorePages}
+              className="inline-flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg border border-border hover:bg-accent disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Next <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-6 grid lg:grid-cols-2 gap-5">

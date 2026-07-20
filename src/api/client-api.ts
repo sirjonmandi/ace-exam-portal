@@ -18,6 +18,23 @@ export interface Mock {
     formated_duration: string;
 }
 
+export interface AnswerStatItem {
+    prompt: string;
+    options: { key: "A" | "B" | "C"; text: string }[];
+    correct_option: "A" | "B" | "C";
+    given_option: "A" | "B" | "C" | null;
+}
+
+export interface Pagination {
+    current_page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
+    from: number;
+    to: number;
+    has_more_pages: boolean;
+}
+
 export interface Performance {
     summary : {
         average_score:number;
@@ -35,7 +52,7 @@ export interface Performance {
 }
 
 export const clientAPI = {
-    dashboard:():Promise<ApiResponse<Performance>>=>apiClient.get(`/dashboard`),
+    dashboard:():Promise<ApiResponse<any>>=>apiClient.get(`/dashboard`),
     getMocks:(page:number):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mocks?page=${page}`),
     getMockDetails:(mockId:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}`),
     getMockQuestions:(mockId:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}/questions`),
@@ -43,4 +60,5 @@ export const clientAPI = {
     getMockResults:():Promise<ApiResponse<Results[]>> => apiClient.get(`/mock/results`),
     getMockResult:(resultId:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${resultId}/result`),
     getPerformance:():Promise<ApiResponse<Performance>>=>apiClient.get(`/performance`),
+    getAnswerStats:(mockAttemptId:string,page:number):Promise<ApiResponse<AnswerStatItem[]> & { pagination: Pagination }>=>apiClient.get(`/answer-stats/${mockAttemptId}?page=${page}`),
 }
