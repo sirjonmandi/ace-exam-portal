@@ -1,12 +1,13 @@
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { mocks } from "@/lib/mock-data";
-import { ArrowRight, BookOpenCheck, BarChart3, CheckCircle2, Flame, Lock, Play } from "lucide-react";
+import { ArrowRight, BookOpenCheck, BarChart3, CheckCircle2, Flame, Lock, Loader2, Play } from "lucide-react";
 import { getStoredUser } from "@/lib/auth";
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { RootState } from "@/store";
 import { dashboard } from "@/store/slices/dashboard-slice";
+import { getSessionMocks, setMock, SessionMock, SessionMockSession } from "@/store/slices/mock-slice";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: () => {
@@ -19,10 +20,27 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const dispatch = useDispatch();
   const { performance } = useSelector((state: RootState) => state.dashboard);
+  const { sessionMocks, sessionMocksPagination, loading } = useSelector((state: RootState) => state.mocks);
+  const pageRef = useRef(1);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     dispatch(dashboard() as any);
+    pageRef.current = 1;
+    dispatch(getSessionMocks(1) as any);
   }, []);
+
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current || !sessionMocksPagination.hasMorePages) return;
+    loadingMoreRef.current = true;
+    const nextPage = pageRef.current + 1;
+    pageRef.current = nextPage;
+    (dispatch(getSessionMocks(nextPage) as any) as Promise<any>).finally(() => {
+      loadingMoreRef.current = false;
+    });
+  }, [dispatch, sessionMocksPagination.hasMorePages]);
+
+  const sentinelRef = useInfiniteScroll(loadMore, sessionMocksPagination.hasMorePages && !loading);
 
   return (
     <AppShell>
@@ -81,57 +99,64 @@ function Dashboard() {
       </div>
 
       <div className="mt-5 grid lg:grid-cols-2 gap-5">
-        {mocks.slice(0, 4).map((m) => (
+        {sessionMocks.map((m) => (
           <MockCard key={m.id} mock={m} />
         ))}
       </div>
+
+      {sessionMocksPagination.hasMorePages && (
+        <div ref={sentinelRef} className="mt-6 flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more mocks…
+        </div>
+      )}
     </AppShell>
   );
 }
 
-function MockCard({ mock }: { mock: typeof mocks[number] }) {
+function MockCard({ mock }: { mock: SessionMock }) {
   return (
     <div className="card-elevated rounded-2xl p-5">
       <div className="flex items-start justify-between">
         <div>
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">Mock Assessment</span>
-          <h3 className="mt-1.5 text-lg font-semibold">{mock.title}</h3>
-          <p className="text-sm text-muted-foreground mt-1 max-w-md">{mock.description}</p>
+          <h3 className="mt-1.5 text-lg font-semibold capitalize">{mock.name}</h3>
+          {mock.description && <p className="text-sm text-muted-foreground mt-1 max-w-md">{mock.description}</p>}
         </div>
         <div className="h-9 w-9 rounded-full bg-surface-elevated border border-border grid place-items-center text-sm font-semibold">
-          {mock.number}
+          {mock.id}
         </div>
       </div>
 
       <div className="mt-5">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Overall Progress</span>
-          <span className="text-foreground font-medium">{mock.progress}%</span>
+          <span className="text-foreground font-medium">{mock.progress ?? 0}%</span>
         </div>
         <div className="mt-2 h-2 rounded-full bg-surface-elevated overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-primary to-primary/60" style={{ width: `${mock.progress}%` }} />
+          <div className="h-full bg-gradient-to-r from-primary to-primary/60" style={{ width: `${mock.progress ?? 0}%` }} />
         </div>
       </div>
 
       <div className="mt-5 space-y-3">
-        {mock.sessions.map((s) => (
-          <SessionRow key={s.id} session={s} />
+        {mock.sessions.map((s, i) => (
+          <SessionRow key={s.session_id} mock={mock} session={s} previousSession={mock.sessions[i - 1]} />
         ))}
       </div>
     </div>
   );
 }
 
-function SessionRow({ session }: { session: typeof mocks[number]["sessions"][number] }) {
-  const badge =
-    session.status === "completed"
-      ? { label: "Completed", cls: "bg-success/15 text-success border-success/30" }
-      : session.status === "available"
-      ? { label: "Available", cls: "bg-primary/15 text-primary border-primary/30" }
-      : { label: "Locked", cls: "bg-destructive/10 text-destructive border-destructive/30" };
+function SessionRow({ mock, session, previousSession }: { mock: SessionMock; session: SessionMockSession; previousSession?: SessionMockSession }) {
+  const badge = !mock.is_unlocked
+    ? { label: "Locked", cls: "bg-destructive/10 text-destructive border-destructive/30" }
+    : session.is_locked
+    ? { label: "Locked", cls: "bg-destructive/10 text-destructive border-destructive/30" }
+    : session.submission_status === "submitted"
+    ? { label: "Completed", cls: "bg-success/15 text-success border-success/30" }
+    : { label: "Available", cls: "bg-primary/15 text-primary border-primary/30" };
 
   return (
-    <div className="rounded-xl bg-surface border border-border p-4">
+    <div className={`rounded-xl bg-surface border border-border p-4`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-medium">{session.name}</div>
@@ -139,41 +164,77 @@ function SessionRow({ session }: { session: typeof mocks[number]["sessions"][num
             {badge.label}
           </span>
         </div>
-        <SessionButton session={session} />
+        <SessionButton mock={mock} session={session} previousSession={previousSession} />
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5"><BookOpenCheck className="h-3 w-3" /> {session.questions} Questions</span>
-        <span className="flex items-center gap-1.5"><Flame className="h-3 w-3" /> {session.duration}</span>
+        <span className="flex items-center gap-1.5"><BookOpenCheck className="h-3 w-3" /> {session.total_questions} Questions</span>
+        <span className="flex items-center gap-1.5"><Flame className="h-3 w-3" /> {session.formatted_duration}</span>
         <span className="flex items-center gap-1.5"><BarChart3 className="h-3 w-3" /> Adaptive Tracking</span>
       </div>
+      {/* {mock.is_unlocked && session.is_locked && (
+        <div className="mt-3 flex items-center gap-1.5 text-[11px] text-destructive">
+          <Lock className="h-3 w-3 shrink-0" />
+          <span>Complete "{previousSession?.name ?? "the previous session"}" first</span>
+        </div>
+      )} */}
     </div>
   );
 }
 
-function SessionButton({ session }: { session: typeof mocks[number]["sessions"][number] }) {
-  if (session.status === "completed")
+function SessionButton({ mock, session, previousSession }: { mock: SessionMock; session: SessionMockSession; previousSession?: SessionMockSession }) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const onStart = () => {
+    dispatch(setMock({ ...mock, session_id: session.session_id }));
+    navigate({
+      to: "/exam/$mockId",
+      params: { mockId: mock.id },
+      search: session.session_id ? { sessionId: String(session.session_id) } : {},
+    });
+  };
+
+  if (!mock.is_unlocked)
     return (
-      <Link
-        to="/results/$resultId"
-        params={{ resultId: session.id }}
-        className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-success text-success-foreground font-medium hover:opacity-90"
-      >
-        Review Performance
-      </Link>
+      <button disabled className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-surface-elevated text-muted-foreground border border-border cursor-not-allowed">
+        <Lock className="h-3 w-3" /> <span className="hidden sm:inline">Complete {mock.unlock_name ?? "previous"} to </span>Unlock
+      </button>
     );
-  if (session.status === "available")
+
+  if (session.is_locked)
     return (
-      <Link
-        to="/exam/$mockId"
-        params={{ mockId: session.id }}
-        className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-foreground text-background font-medium hover:opacity-90"
-      >
-        <Play className="h-3 w-3" /> Start Assessment
-      </Link>
+      <button disabled className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-surface-elevated text-muted-foreground border border-border cursor-not-allowed">
+        <Lock className="h-3 w-3" /> Complete {previousSession?.name ?? "the previous session"} First
+      </button>
     );
+
+  if (session.submission_status === "submitted")
+    return (
+      <div className="flex items-center gap-2">
+        <Link
+          to="/results/$resultId"
+          params={{ resultId: session.result_id ?? "" }}
+          className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-success text-success-foreground font-medium hover:opacity-90"
+        >
+          Review Performance
+        </Link>
+        {session.is_retake && (
+          <button
+            onClick={onStart}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-foreground text-background font-medium hover:opacity-90"
+          >
+            <Play className="h-3 w-3" /> Retake
+          </button>
+        )}
+      </div>
+    );
+
   return (
-    <button disabled className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-surface-elevated text-muted-foreground border border-border cursor-not-allowed">
-      <Lock className="h-3 w-3" /> <span className="hidden sm:inline">Complete previous to </span>Unlock
+    <button
+      onClick={onStart}
+      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-foreground text-background font-medium hover:opacity-90"
+    >
+      <Play className="h-3 w-3" /> Start Assessment
     </button>
   );
 }

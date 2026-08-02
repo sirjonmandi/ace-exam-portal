@@ -252,22 +252,28 @@ function ReviewInsightsPage() {
             return (
               <div key={idx} className="rounded-xl border border-border p-4">
                 <div className="flex items-start justify-between gap-4">
-                  <p className="text-sm font-medium">
-                    <span className="text-muted-foreground">Q{questionNumber}.</span> {q.prompt}
-                  </p>
-                  {isSkipped ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
-                      <CircleDashed className="h-3.5 w-3.5" /> Not Attempted
-                    </span>
-                  ) : isCorrect ? (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-success whitespace-nowrap">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Correct
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive whitespace-nowrap">
-                      <XCircle className="h-3.5 w-3.5" /> Incorrect
-                    </span>
-                  )}
+                  <div className="w-10/12">
+                    <p className="text-sm font-medium">
+                      <p className="text-muted-foreground">Q{questionNumber}.</p>
+                      <div dangerouslySetInnerHTML={{ __html: q.prompt }}/>
+                      {/* <span className="text-muted-foreground">Q{questionNumber}.</span> {q.prompt} */}
+                    </p>
+                  </div>
+                  <div className="w-2/12 flex flex-col items-end gap-2 "> 
+                    {isSkipped ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground whitespace-nowrap">
+                        <CircleDashed className="h-3.5 w-3.5" /> Not Attempted
+                      </span>
+                    ) : isCorrect ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-success whitespace-nowrap">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Correct
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive whitespace-nowrap">
+                        <XCircle className="h-3.5 w-3.5" /> Incorrect
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-3 space-y-1.5">

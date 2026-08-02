@@ -5,8 +5,9 @@ import {
   createRootRouteWithContext,
   useRouter,
 } from "@tanstack/react-router";
-import { ThemeProvider } from "@/lib/theme";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth-context";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -71,6 +72,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster theme={theme} position="top-center" richColors />;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -79,6 +85,7 @@ function RootComponent() {
       <AuthProvider>
         <QueryClientProvider client={queryClient}>
           <Outlet />
+          <ThemedToaster />
         </QueryClientProvider>
       </AuthProvider>
     </ThemeProvider>

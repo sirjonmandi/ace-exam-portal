@@ -4,6 +4,7 @@ import axios from 'axios';
 
 interface Mock {
   id: string;
+  session_id?: number;
   name: string;
   description: string;
   difficulty: string;
@@ -28,10 +29,12 @@ interface MockQuestion {
   prompt: string;
   options: { key: "A" | "B" | "C"; text: string }[];
   answer?: "A" | "B" | "C";
+  explanation?: string;
 }
 
 export interface MockSubmitData {
   examId: string;
+  sessionId?: string;
   questionMetrics:{
     questionId: string;
     givenAnswer: "A" | "B" | "C";
@@ -50,8 +53,52 @@ export interface MockSubmitData {
 interface GetMocksResponse {
   success: boolean;
   message: string;
-  data: {
-    mocks: Mock[];
+  data: Mock[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
+    has_more_pages: boolean;
+  };
+}
+
+export interface SessionMockSession {
+  session_id: number;
+  name: string;
+  total_questions: number;
+  duration_minutes: number;
+  formatted_duration: string;
+  total_modules_count: number;
+  submission_status: string | null;
+  result_id: string | null;
+  is_retake: boolean;
+  is_locked: boolean;
+}
+
+export interface SessionMock {
+  id: string;
+  name: string;
+  description: string | null;
+  difficulty: string;
+  cfa_level: string;
+  sessions: SessionMockSession[];
+  is_active: boolean;
+  progress: number | null;
+  is_unlocked: boolean;
+  unlock_name: string | null;
+}
+
+interface GetSessionMocksResponse {
+  success: boolean;
+  message: string;
+  data: SessionMock[];
+  pagination: {
+    current_page: number;
+    per_page: number;
+    total: number;
+    last_page: number;
+    has_more_pages: boolean;
   };
 }
 
@@ -67,6 +114,7 @@ export interface Results {
 }
 
 export interface AnswerStat {
+  topic: string;
   prompt: string;
   options: { key: "A" | "B" | "C"; text: string }[];
   correctOption: "A" | "B" | "C";
@@ -75,6 +123,21 @@ export interface AnswerStat {
 
 interface MockState {
   mocks: Mock[];
+  mocksPagination: {
+    currentPage: number;
+    perPage: number;
+    total: number;
+    lastPage: number;
+    hasMorePages: boolean;
+  };
+  sessionMocks: SessionMock[];
+  sessionMocksPagination: {
+    currentPage: number;
+    perPage: number;
+    total: number;
+    lastPage: number;
+    hasMorePages: boolean;
+  };
   mock: Mock | null;
   mockQuestions: MockQuestion[];
   loading: boolean;
@@ -119,6 +182,21 @@ interface MockState {
 
 const initialState: MockState = {
   mocks: [],
+  mocksPagination: {
+    currentPage: 1,
+    perPage: 10,
+    total: 0,
+    lastPage: 1,
+    hasMorePages: false,
+  },
+  sessionMocks: [],
+  sessionMocksPagination: {
+    currentPage: 1,
+    perPage: 10,
+    total: 0,
+    lastPage: 1,
+    hasMorePages: false,
+  },
   mock: null,
   mockQuestions: [],
   loading: false,
@@ -161,7 +239,7 @@ export const getMocks = createAsyncThunk<
   }
 >('mock/getMocks', async (page = 1, { rejectWithValue }) => {
   try {
-    const response = await clientAPI.getMocks(page);
+    const response = await clientAPI.getMocks('standard',page);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -174,14 +252,20 @@ export const getMocks = createAsyncThunk<
   }
 });
 
-export const getMockDetails = createAsyncThunk('mock/getMockDetails', async (mockId: string,{ rejectWithValue }) => {
+export const getSessionMocks = createAsyncThunk<
+  GetSessionMocksResponse,
+  number | undefined,
+  {
+    rejectValue: string;
+  }
+>('mock/getSessionMocks', async (page = 1, { rejectWithValue }) => {
   try {
-    const response = await clientAPI.getMockDetails(mockId);
+    const response = await clientAPI.getMocks('session-based', page);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       return rejectWithValue(
-        error.response?.data?.message ?? 'Failed to get mocks'
+        error.response?.data?.message ?? 'Failed to get session mocks'
       );
     }
 
@@ -189,23 +273,41 @@ export const getMockDetails = createAsyncThunk('mock/getMockDetails', async (moc
   }
 });
 
-export const getMockQuestions = createAsyncThunk('mock/getMockQuestions', async (mockId?: string,{ rejectWithValue }) => {
+export const getMockDetails = createAsyncThunk('mock/getMockDetails', async ({ mockId, sessionId }: { mockId: string; sessionId?: string },{ rejectWithValue }) => {
   try {
+    const response = await clientAPI.getMockDetails(mockId, sessionId);
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      return rejectWithValue({
+        message: error.response?.data?.message ?? 'Failed to get mocks',
+        status: error.response?.status,
+      });
+    }
+
+    return rejectWithValue({ message: 'Something went wrong' });
+  }
+});
+
+export const getMockQuestions = createAsyncThunk('mock/getMockQuestions', async (args?: { mockId?: string; sessionId?: string },{ rejectWithValue }) => {
+  try {
+    const mockId = args?.mockId;
     if (!mockId) throw new Error('Mock ID is required');
-    const response = await clientAPI.getMockQuestions(mockId);
+    const response = await clientAPI.getMockQuestions(mockId, args?.sessionId);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      return rejectWithValue(
-        error.response?.data?.message ?? 'Failed to get mocks'
-      );
+      return rejectWithValue({
+        message: error.response?.data?.message ?? 'Failed to get mocks',
+        status: error.response?.status,
+      });
     }
 
-    return rejectWithValue('Something went wrong');
+    return rejectWithValue({ message: 'Something went wrong' });
   }
 });
 
-export const submitMockExam = createAsyncThunk('mock/submitMockExam', async ({ mockId, data }: { mockId: string; data: MockSubmitData}) => {
+export const submitMockExam = createAsyncThunk('mock/submitMockExam', async ({ mockId, data }: { mockId: string; data: MockSubmitData}, { rejectWithValue }) => {
   try {
     if (!mockId) throw new Error('Mock ID is required');
     console.log('Submitting mock exam with data:', data);
@@ -213,11 +315,12 @@ export const submitMockExam = createAsyncThunk('mock/submitMockExam', async ({ m
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
-      throw new Error(
-        error.response?.data?.message ?? 'Failed to submit mock exam'
-      );
+      return rejectWithValue({
+        message: error.response?.data?.message ?? 'Failed to submit mock exam',
+        status: error.response?.status,
+      });
     }
-    throw new Error('Something went wrong');
+    return rejectWithValue({ message: 'Something went wrong' });
   }
 });
 
@@ -338,7 +441,14 @@ const mockSlice = createSlice({
 
       .addCase(getMocks.fulfilled, (state, action) => {
         state.loading = false;
-        state.mocks = action.payload.data;
+        state.mocks = (action.meta.arg ?? 1) > 1 ? [...state.mocks, ...action.payload.data] : action.payload.data;
+        state.mocksPagination = {
+          currentPage: action.payload.pagination.current_page,
+          perPage: action.payload.pagination.per_page,
+          total: action.payload.pagination.total,
+          lastPage: action.payload.pagination.last_page,
+          hasMorePages: action.payload.pagination.has_more_pages,
+        };
         state.error = null;
       })
 
@@ -346,7 +456,31 @@ const mockSlice = createSlice({
         state.loading = false;
         state.error = action.payload ?? 'Failed to get mocks';
       });
-    
+
+    builder
+      .addCase(getSessionMocks.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(getSessionMocks.fulfilled, (state, action) => {
+        state.loading = false;
+        state.sessionMocks = (action.meta.arg ?? 1) > 1 ? [...state.sessionMocks, ...action.payload.data] : action.payload.data;
+        state.sessionMocksPagination = {
+          currentPage: action.payload.pagination.current_page,
+          perPage: action.payload.pagination.per_page,
+          total: action.payload.pagination.total,
+          lastPage: action.payload.pagination.last_page,
+          hasMorePages: action.payload.pagination.has_more_pages,
+        };
+        state.error = null;
+      })
+
+      .addCase(getSessionMocks.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload ?? 'Failed to get session mocks';
+      });
+
     builder
       .addCase(getMockDetails.pending, (state) => {
         state.loading = true;
@@ -361,7 +495,7 @@ const mockSlice = createSlice({
 
       .addCase(getMockDetails.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message ?? 'Failed to get mock details';
+        state.error = (action.payload as any)?.message ?? action.error.message ?? 'Failed to get mock details';
       });
     
     builder
@@ -376,7 +510,7 @@ const mockSlice = createSlice({
       })
       .addCase(getMockQuestions.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message ?? 'Failed to get mock questions';
+        state.error = (action.payload as any)?.message ?? action.error.message ?? 'Failed to get mock questions';
       });
     
     builder
@@ -391,7 +525,7 @@ const mockSlice = createSlice({
       })
       .addCase(submitMockExam.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message ?? 'Failed to submit mock exam';
+        state.error = (action.payload as any)?.message ?? action.error.message ?? 'Failed to submit mock exam';
       });
     
     builder
@@ -459,6 +593,7 @@ const mockSlice = createSlice({
       .addCase(getAnswerStats.fulfilled, (state, action) => {
         state.loading = false;
         state.answerStats.questions = action.payload.data.map((q: any) => ({
+          topic: q.topic,
           prompt: q.prompt,
           options: q.options,
           correctOption: q.correct_option,

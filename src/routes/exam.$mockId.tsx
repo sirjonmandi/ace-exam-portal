@@ -9,14 +9,22 @@ import {
   MousePointerClick, ListOrdered, Lock, Clock,
   Settings, SlidersHorizontal, ChevronDown, ChevronUp, X,
   Loader2, FileQuestion,
+  Lightbulb,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "@/store";
 import { getMockDetails ,getMockQuestions, submitMockExam } from "@/store/slices/mock-slice";
+import { toast } from "sonner";
 export const Route = createFileRoute("/exam/$mockId")({
   beforeLoad: () => {
     if (typeof window !== "undefined" && !getStoredUser()) throw redirect({ to: "/login" });
+  },
+  validateSearch: (search: Record<string, unknown>): { sessionId?: string } => {
+    const raw = search.sessionId;
+    return {
+      sessionId: raw !== undefined && raw !== null && raw !== "" ? String(raw) : undefined,
+    };
   },
   head: () => ({ meta: [{ title: "Exam — Kaplan CFA Mock Portal" }] }),
   component: ExamPage,
@@ -35,6 +43,7 @@ function ExamPage() {
   const dispatch = useDispatch();
   const { user } = useAuth();
   const { mockId } = Route.useParams();
+  const { sessionId } = Route.useSearch();
   const navigate = useNavigate();
   const { mock, mockQuestions } = useSelector((state: RootState) => state.mocks);
   // Once a real (possibly empty) fetch has completed, stop falling back to
@@ -101,10 +110,25 @@ function ExamPage() {
   const currentQIdRef = useRef<string>(questions[0]?.id);
   const answersRef = useRef(answers);
 
+  // Defense-in-depth: the session's lock status may have changed since the
+  // dashboard was last loaded, so a locked session can still be requested
+  // directly here and gets a 403 back from the API.
+  const handleLockedSession = (message?: string) => {
+    toast.error(message ?? "This session is locked.");
+    navigate({ to: "/dashboard" });
+  };
+
   // Fetch mock details on load
   useEffect(() => {
-    if (!mock && mockId) dispatch(getMockDetails(mockId) as any);
-  }, [mockId]);
+    if (!mockId) return;
+    (async () => {
+      const result: any = await dispatch(getMockDetails({ mockId, sessionId }) as any);
+      if (result?.meta?.requestStatus === "rejected" && result?.payload?.status === 403) {
+        handleLockedSession(result?.payload?.message);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mockId, sessionId]);
 
   // Initialize tracking metrics for all questions when the exam loads
   useEffect(() => {
@@ -240,92 +264,6 @@ function ExamPage() {
       return next;
     });
   };
-// Reusable submit function to handle both manual clicks and timer run-outs
-  const handleFinalSubmitOld = () => {
-    const metricsArray = Object.values(trackingMetricsRef.current);
-    const attemptedCount = Object.keys(answersRef.current).length;
-    const notAttemptedCount = questions.length - attemptedCount;
-
-    const TOTAL_EXAM_SECONDS = (mock?.duration_minutes ?? 0) * 60;
-    const overallTimeSpent = TOTAL_EXAM_SECONDS - seconds;
-
-    // Initialize accuracy counters
-    let correctCount = 0;
-    let wrongCount = 0;
-
-    const subjectMap:any = {};
-
-    // Process each question to determine correctness
-    const finalQuestionMetrics = metricsArray.map((m) => {
-      const question = questions.find((q) => q.id === m.id);
-      const correctAnswer = question?.answer;
-      const givenAnswer = answersRef.current[m.id] || null;
-      let isCorrect = false;
-
-      if (givenAnswer) {
-        if (givenAnswer === correctAnswer) {
-          isCorrect = true;
-          correctCount += 1;
-        } else {
-          wrongCount += 1;
-        }
-      }
-
-      // Build subject stats
-      const subject = question?.topic || "Unknown";
-
-      if (!subjectMap[subject]) {
-        subjectMap[subject] = {
-          subject,
-          score: 0,
-          total: 0,
-        };
-      }
-
-      subjectMap[subject].total += 1;
-
-      if (isCorrect) {
-        subjectMap[subject].score += 1;
-      }
-
-      return {
-        questionId: m.id,
-        topic: question?.topic,
-        totalTimeSpent: m.totalTimeSeconds,
-        timeSpentAfterAttempt: m.timeAfterAttemptSeconds,
-        timesViewed: m.viewCount,
-        isReopened: m.viewCount > 1,
-        isAttempted: !!givenAnswer,
-        givenAnswer: givenAnswer,
-        correctAnswer: correctAnswer, 
-        isCorrect: isCorrect,
-      };
-    });
-
-    const subjectStats = Object.values(subjectMap);
-    // Prepare the final analytics payload
-    const trackingReport = {
-      examId: mockId,
-      userId: user?.id,
-      summary: {
-        totalQuestions: questions.length,
-        attempted: attemptedCount,
-        notAttempted: notAttemptedCount,
-        correctCount: correctCount,
-        wrongCount: wrongCount,
-        overallTimeLeft: seconds,
-        totalTimeSpent: overallTimeSpent,
-      },
-      subjectStats,
-      questionMetrics: finalQuestionMetrics,
-    };
-
-    // TODO: Dispatch 'trackingReport' to your backend API here
-    console.log("Final Analytics Payload:", trackingReport);
-    // localStorage.removeItem(mockId);
-    // localStorage.setItem(mockId,JSON.stringify(trackingReport));
-    // navigate({ to: "/results/$resultId", params: { resultId: mockId } });
-  };
 
   const handleFinalSubmit = async () => {
     const metricsArray = Object.values(trackingMetricsRef.current);
@@ -354,6 +292,7 @@ function ExamPage() {
     // Prepare the final analytics payload
     const data = {
       examId: mockId,
+      ...(sessionId ? { session_id:sessionId } : {}),
       questionMetrics: finalQuestionMetrics,
       totalQuestions: questions.length,
       attempted: attemptedCount,
@@ -370,6 +309,10 @@ function ExamPage() {
       if (result.meta.requestStatus === "fulfilled") {
         let resultId = result.payload.data.result_id;
         navigate({ to: "/results/$resultId", params: { resultId: resultId } });
+      } else if (result.payload?.status === 403) {
+        handleLockedSession(result.payload?.message);
+      } else {
+        toast.error(result.payload?.message ?? "Failed to submit exam. Please try again.");
       }
     } catch (error) {
       console.error("Error submitting exam:", error);
@@ -383,7 +326,7 @@ function ExamPage() {
     setBeginError(null);
     setBeginLoading(true);
     try {
-      const result: any = await (dispatch(getMockQuestions(mock.id) as any) as any).unwrap();
+      const result: any = await (dispatch(getMockQuestions({ mockId: mock.id, sessionId }) as any) as any).unwrap();
       setQuestionsLoaded(true);
       const loaded = result?.data ?? [];
       if (!loaded.length) {
@@ -392,7 +335,11 @@ function ExamPage() {
       }
       setInstructionsOpen(false);
     } catch (err: any) {
-      setBeginError(typeof err === "string" ? err : err?.message ?? "Failed to load questions. Please try again.");
+      if (err?.status === 403) {
+        handleLockedSession(err?.message);
+      } else {
+        setBeginError(typeof err === "string" ? err : err?.message ?? "Failed to load questions. Please try again.");
+      }
     } finally {
       setBeginLoading(false);
     }
@@ -717,12 +664,12 @@ function ExamPage() {
                 <div className="bg-background border border-primary/20 rounded-xl shadow-sm p-4 sm:p-5 md:p-8">
                   {/* Topic + flag badge */}
                   <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <span
+                    {/* <span
                       className="text-xs px-2.5 py-1 rounded-full font-medium border"
                       style={{color: "#15803d", borderColor: "#15803d" }}
                     >
                       {q.topic}
-                    </span>
+                    </span> */}
                     <span className="text-xs text-gray-400">Question {idx + 1} of {questions.length}</span>
                     {flagged.has(q.id) && (
                       <span
@@ -735,7 +682,7 @@ function ExamPage() {
                   </div>
 
                   {/* Question text */}
-                  <p className="text-base md:text-lg leading-relaxed">{q.prompt}</p>
+                  <p className="text-base md:text-lg leading-relaxed"><span dangerouslySetInnerHTML={{ __html: q.prompt }}/></p>
 
                   {/* Answer options */}
                   <div className="mt-6 space-y-3">
@@ -767,6 +714,29 @@ function ExamPage() {
                       );
                     })}
                   </div>
+
+                  {/* Explanation */}
+                  {q.explanation && (
+                    <div
+                      className="mt-6 rounded-lg border p-4 sm:p-5"
+                      style={{ borderColor: "#4caf5033", background: "#4caf5008" }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span
+                          className="h-6 w-6 shrink-0 rounded-full grid place-items-center"
+                          style={{ background: "#4caf50", color: "#ffffff" }}
+                        >
+                          <Lightbulb className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="text-sm font-semibold" style={{ color: "#15803d" }}>
+                          Explanation
+                        </span>
+                      </div>
+                      <p className="text-sm leading-relaxed transition-colors">
+                        {q.explanation}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-background border border-primary/20 rounded-xl shadow-sm p-8 flex flex-col items-center text-center gap-3">

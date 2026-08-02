@@ -2,11 +2,12 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { getStoredUser } from "@/lib/auth";
 import { AppShell } from "@/components/app-shell";
 // import { mocks } from "@/lib/mock-data";
-import { BookOpenCheck, Flame, BarChart3, Lock, Play } from "lucide-react";
+import { BookOpenCheck, Flame, BarChart3, Lock, Play, Loader2 } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { getMocks, setMock } from "@/store/slices/mock-slice";
 import { RootState } from "@/store";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 
 export const Route = createFileRoute("/mocks")({
   beforeLoad: () => {
@@ -19,11 +20,26 @@ export const Route = createFileRoute("/mocks")({
 function MocksPage() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { mocks } = useSelector((state:RootState)=>state.mocks);
+  const { mocks, mocksPagination, loading } = useSelector((state:RootState)=>state.mocks);
+  const pageRef = useRef(1);
+  const loadingMoreRef = useRef(false);
 
   useEffect(()=>{
+    pageRef.current = 1;
     dispatch(getMocks(1) as any);
   },[]);
+
+  const loadMore = useCallback(() => {
+    if (loadingMoreRef.current || !mocksPagination.hasMorePages) return;
+    loadingMoreRef.current = true;
+    const nextPage = pageRef.current + 1;
+    pageRef.current = nextPage;
+    (dispatch(getMocks(nextPage) as any) as Promise<any>).finally(() => {
+      loadingMoreRef.current = false;
+    });
+  }, [dispatch, mocksPagination.hasMorePages]);
+
+  const sentinelRef = useInfiniteScroll(loadMore, mocksPagination.hasMorePages && !loading);
 
   const onClickMock = (mock:any) =>{
     dispatch(setMock(mock));
@@ -142,6 +158,12 @@ function MocksPage() {
           </div>
         ))}
       </div>
+
+      {mocksPagination.hasMorePages && (
+        <div ref={sentinelRef} className="mt-6 flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more mocks…
+        </div>
+      )}
     </AppShell>
   );
 }
