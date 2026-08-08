@@ -238,10 +238,17 @@ function ExamPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // Group questions into sections by topic
+  // Group questions into sections of 15-25 questions each, preserving original
+  // order. Small topics are merged with neighbors to reach the minimum; large
+  // topics (or topics that would push a section past the max) are split across
+  // sections instead of being kept whole.
   const sections = useMemo(() => {
+    const MIN_QUESTIONS = 15;
+    const MAX_QUESTIONS = 25;
+
     const topicOrder: string[] = [];
     const topicMap = new Map<string, number[]>();
+
     questions.forEach((q, i) => {
       if (!topicMap.has(q.topic)) {
         topicMap.set(q.topic, []);
@@ -249,7 +256,64 @@ function ExamPage() {
       }
       topicMap.get(q.topic)!.push(i);
     });
-    return topicOrder.map(topic => ({ topic, indices: topicMap.get(topic)! }));
+
+    const result: { topic: string; indices: number[] }[] = [];
+    let currentTopics: string[] = [];
+    let currentIndices: number[] = [];
+
+    const flush = () => {
+      if (currentIndices.length === 0) return;
+      result.push({ topic: currentTopics.join(" + "), indices: currentIndices });
+      currentTopics = [];
+      currentIndices = [];
+    };
+
+    for (const topic of topicOrder) {
+      let remaining = topicMap.get(topic)!;
+
+      while (remaining.length > 0) {
+        const space = MAX_QUESTIONS - currentIndices.length;
+
+        if (space <= 0) {
+          flush();
+          continue;
+        }
+
+        if (remaining.length <= space) {
+          // The rest of this topic fits in the current section.
+          currentIndices.push(...remaining);
+          currentTopics.push(topic);
+          remaining = [];
+        } else if (currentIndices.length >= MIN_QUESTIONS) {
+          // Current section is already a valid size; start a fresh one for
+          // this topic rather than splitting it unnecessarily.
+          flush();
+        } else {
+          // Doesn't fit whole and the section isn't big enough yet: split the
+          // topic so the current section fills up to the max, then continue
+          // the remainder in the next section.
+          currentIndices.push(...remaining.slice(0, space));
+          currentTopics.push(topic);
+          remaining = remaining.slice(space);
+          flush();
+        }
+      }
+    }
+    flush();
+
+    // If the trailing section is under the minimum, fold it into the previous
+    // one whenever that keeps the previous section within the max.
+    if (result.length > 1) {
+      const last = result[result.length - 1];
+      const prev = result[result.length - 2];
+      if (last.indices.length < MIN_QUESTIONS && prev.indices.length + last.indices.length <= MAX_QUESTIONS) {
+        prev.topic += " + " + last.topic;
+        prev.indices.push(...last.indices);
+        result.pop();
+      }
+    }
+
+    return result;
   }, [questions]);
 
   // All sections start expanded
@@ -658,7 +722,11 @@ function ExamPage() {
           </aside>
 
           {/* Main question content */}
-          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6
+            [&::-webkit-scrollbar]:w-2
+            [&::-webkit-scrollbar-track]:bg-primary/20
+            [&::-webkit-scrollbar-thumb]:bg-[#4caf50]
+          ">
             <div className="max-w-3xl mx-auto">
               {q ? (
                 <div className="bg-background border border-primary/20 rounded-xl shadow-sm p-4 sm:p-5 md:p-8">
@@ -682,8 +750,30 @@ function ExamPage() {
                   </div>
 
                   {/* Question text */}
-                  <p className="text-base md:text-lg leading-relaxed"><span dangerouslySetInnerHTML={{ __html: q.prompt }}/></p>
-
+                  {/* <p className="text-base md:text-lg leading-relaxed"><span dangerouslySetInnerHTML={{ __html: q.prompt }}/></p> */}
+                    <div
+                      className="
+                        prose max-w-none
+                        [&_table]:w-full
+                        [&_table]:border
+                        [&_table]:border-primary/10
+                        [&_table]:border-separate
+                        [&_table]:border-spacing-0
+                        [&_table]:rounded-lg
+                        [&_table]:overflow-hidden
+                        [&_th]:border
+                        [&_th]:border-primary/10
+                        [&_th]:px-4
+                        [&_th]:py-2
+                        [&_th]:bg-muted
+                        [&_th]:font-semibold
+                        [&_td]:border
+                        [&_td]:border-primary/10
+                        [&_td]:px-4
+                        [&_td]:py-2
+                      "
+                      dangerouslySetInnerHTML={{ __html: q.prompt }}
+                    />
                   {/* Answer options */}
                   <div className="mt-6 space-y-3">
                     {q.options.map((opt) => {
@@ -692,7 +782,7 @@ function ExamPage() {
                         <button
                           key={opt.key}
                           onClick={() => setAnswers({ ...answers, [q.id]: opt.key })}
-                          className="w-full text-left flex items-start gap-4 p-4 rounded-lg border-2 border-primary/20 transition-all"
+                          className="w-full text-left flex items-start gap-4 p-4 rounded-lg border-2 border-primary/20 transition-all hover:cursor-pointer"
                           style={
                             selected
                               ? { borderColor: "#4caf50"}

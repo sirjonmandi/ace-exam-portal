@@ -53,7 +53,12 @@ export interface Performance {
 
 export const clientAPI = {
     dashboard:():Promise<ApiResponse<any>>=>apiClient.get(`/dashboard`),
-    getMocks:(type:string,page:number):Promise<ApiResponse<Mock[]> & { pagination: Pagination }> => apiClient.get(`/mocks?type=${type}&page=${page}`),
+    // getMocks:(type:string,page:number):Promise<ApiResponse<Mock[]> & { pagination: Pagination }> => apiClient.get(`/mocks?type=${type}&page=${page}`),
+    getMocks: (
+    page: number,
+    type?: string
+    ): Promise<ApiResponse<Mock[]> & { pagination: Pagination }> =>
+    apiClient.get(`/mocks?page=${page}${type ? `&type=${encodeURIComponent(type)}` : ""}`),
     getMockDetails:(mockId:string, sessionId?:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}${sessionId ? `?session_id=${sessionId}` : ''}`),
     getMockQuestions:(mockId:string, sessionId?:string):Promise<ApiResponse<Mock[]>> => apiClient.get(`/mock/${mockId}/questions${sessionId ? `?session_id=${sessionId}` : ''}`),
     submitMockExam:(mockId:string, data: MockSubmitData):Promise<ApiResponse<Mock[]>> => apiClient.post(`/mock/${mockId}/submit`,data),

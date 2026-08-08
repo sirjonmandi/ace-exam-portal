@@ -22,6 +22,10 @@ interface Mock {
   unlock_name:string;
 }
 
+interface StandardMock extends Mock {
+  mock_type: 'standard';
+}
+
 interface MockQuestion {
   id: string;
   question_id: string;
@@ -53,7 +57,7 @@ export interface MockSubmitData {
 interface GetMocksResponse {
   success: boolean;
   message: string;
-  data: Mock[];
+  data: MockListItem[];
   pagination: {
     current_page: number;
     per_page: number;
@@ -78,6 +82,7 @@ export interface SessionMockSession {
 
 export interface SessionMock {
   id: string;
+  mock_type: 'session_based';
   name: string;
   description: string | null;
   difficulty: string;
@@ -88,6 +93,8 @@ export interface SessionMock {
   is_unlocked: boolean;
   unlock_name: string | null;
 }
+
+export type MockListItem = StandardMock | SessionMock;
 
 interface GetSessionMocksResponse {
   success: boolean;
@@ -122,7 +129,7 @@ export interface AnswerStat {
 }
 
 interface MockState {
-  mocks: Mock[];
+  mocks: MockListItem[];
   mocksPagination: {
     currentPage: number;
     perPage: number;
@@ -239,7 +246,7 @@ export const getMocks = createAsyncThunk<
   }
 >('mock/getMocks', async (page = 1, { rejectWithValue }) => {
   try {
-    const response = await clientAPI.getMocks('standard',page);
+    const response = await clientAPI.getMocks(page);
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -260,7 +267,7 @@ export const getSessionMocks = createAsyncThunk<
   }
 >('mock/getSessionMocks', async (page = 1, { rejectWithValue }) => {
   try {
-    const response = await clientAPI.getMocks('session-based', page);
+    const response = await clientAPI.getMocks(page, 'session-based');
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
